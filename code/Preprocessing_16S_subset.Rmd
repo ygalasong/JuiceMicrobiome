@@ -171,3 +171,118 @@ reverseQualPlot_filt <- plotQualityProfile(filtered_reverse_reads)
 (forwardQualPlot + reverseQualPlot) / (forwardQualPlot_filt + reverseQualPlot_filt)
 
 ```
+
+#Generate an Error Model
+```{r learn-errors}
+#Learn errors
+err_forward_reads <- learnErrors(filtered_forward_reads, multithread = TRUE)
+err_reverse_reads <- learnErrors(filtered_reverse_reads, multithread = TRUE)
+
+#Plot the errors
+error_model_fwd <- plotErrors(err_forward_reads, nominalQ = TRUE)
+error_model_rev <- plotErrors(err_reverse_reads, nominalQ = TRUE)
+```
+
+# Inferring ASVs on the forward and reverse sequences
+```{r denoising}
+# Run DADA2 on forward sequences
+dada_forward <- dada(filtered_forward_reads, err = err_forward_reads, multithread = TRUE)
+head(dada_forward)
+
+# Run DADA2 on reverse sequences
+dada_reverse <- dada(filtered_reverse_reads, err = err_reverse_reads, multithread = TRUE)
+head(dada_reverse)
+
+```
+# Merge the forward and reverse ASVs
+```{r Merge}
+# Merge forward ASVs and reverse ASVs
+merged_amplicons <- mergePairs(dadaF = dada_forward, 
+                               derepF = filtered_forward_reads, 
+                               dadaR = dada_reverse, 
+                               derepR = filtered_reverse_reads,
+                               verbose = TRUE)
+#Inspect the output
+head(merged_amplicons)
+```
+#Generate a count table
+```{r seqtab}
+seqtab <- makeSequenceTable(merged_amplicons)
+class(seqtab)
+typeof(seqtab)
+dim(seqtab)
+
+#Inspect the distribution of sequence lengths of all ASVs in the data set
+table(nchar(getSequences(seqtab)))
+
+```
+
+# Search & Remove Chimeras (or Bimeras)
+```{r Chimeras}
+seqtab_nochim <- removeBimeraDenovo(seqtab, verbose = TRUE, multithread = TRUE)
+
+# Calculate percentage of chimeras removed
+
+frac_removed <- (1-sum(seqtab_nochim)/sum(seqtab))*100
+paste0("Chimeras represented ", frac_removed, "% of merged reads")
+
+```
+
+Chimeras represented `r frac_removed` % of the data
+```{r track table}
+# Create a function to identify the number of sequences
+getN <- function(x) sum(getUniques(x))
+
+# Make the table to track the sequences
+track <- cbind(filtered_out,
+               sapply(dada_forward, getN),
+               sapply(dada_reverse, getN),
+               sapply(merged_amplicons, getN),
+               rowSums(seqtab_nochim))
+head(track)
+
+#Change the column names
+colnames(track) <- c("input","filtered","denoisedF","denoisedR","merged","nochim")
+
+#Change the row names to samples names
+rownames(track) <-  samples
+```
+
+```{r tracking reads through pipeline}
+
+#Generate a plot to track the reads through our DADA2 pipeline
+
+#Tip: to track the progress of the pipeline (or just for sanity check), add %>% head() to see how the data frame changes after each command
+
+track_pct <- track %>% as.data.frame() %>% rownames_to_column(var = "names") %>% rowwise() %>% mutate(filtered = filtered/input, denoisedF = denoisedF/input, denoisedR = denoisedR/input, merged = merged/input, nochim = nochim/input)
+
+track %>% as.data.frame() %>% rownames_to_column(var = "names") %>% pivot_longer(input:nochim, names_to = "read_type", values_to = "num_reads") %>%
+  mutate(read_type = fct_relevel(read_type, "input", "filtered", "denoisedF", "denoisedR","merged","nochim")) %>%
+  ggplot(aes(x = read_type,y = num_reads, fill = read_type)) + 
+  geom_line(aes(group = names), color = "grey") +
+  geom_point(shape = 21, size = 3, alpha = 0.8) +
+  scale_fill_brewer(palette = "Spectral") +
+  theme_bw()+
+  labs(x = "Filtering Step", y = "Number of Sequences")+
+  theme(legend.position = "bottom", legend.title = element_blank(),
+        axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
+  
+```
+# Assign Taxonomy 
+
+Here, we will use the silva database version 138!
+```{r assign-tax}
+SILVA_train_path <- "/workdir/yg225/JuiceMicrobiome/SILVA/silva_nr99_v138.1_train_set.fa.gz"
+
+SILVA_species_path <- "/workdir/yg225/JuiceMicrobiome/SILVA/silva_species_assignment_v138.1.fa.gz"
+
+taxa <- assignTaxonomy(seqtab_nochim, SILVA_train_path, multithread=TRUE)
+
+taxa <- addSpecies(taxa, SILVA_species_path)
+
+# Inspect the taxonomy 
+taxa_print <- taxa 
+# Removing sequence row names for display only
+rownames(taxa_print) <- NULL
+View(taxa_print)
+```
