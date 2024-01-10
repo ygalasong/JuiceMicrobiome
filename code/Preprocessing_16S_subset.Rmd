@@ -1,15 +1,153 @@
 ---
-title: "Preprocessing_ITS"
+title: "Preprocessing_16S_subset"
 author: "Yupawadee Galasong"
 date: "`r Sys.Date()`"
 output: html_document
+editor_options: 
+  chunk_output_type: console
 ---
 # Load packages
 ```{r}
 pacman::p_load(dada2, tidyverse, phyloseq, patchwork,Biostrings, install = FALSE)
 ```
-# Import files
+# Install an additional package for cutadapt
+
 ```{r}
+pacman::p_load(devtools, DelayedArray, GenomeInfoDb, ShortRead, install = FALSE)
+install_github("omicsCore/SEQprocess")
+library("SEQprocess") # Loads the package
+#library(help="SEQprocess") # Lists package info
+```
+
+# Set up file path
+```{r}
+path <- "./Data_16S"
+```
+
+# Renaming files
+This part will be skipped for now. We only want to see the overall read quality,
+sequencing output, and whether the Nakano primers yield lower mitochondria & chloroplast reads
+compared to the universal 16S primers.
+
+# Create variables for the forward and reverse reads
+```{r}
+#Forward read variables
+forward_reads <- list.files(path, pattern = "R1", full.names = TRUE)
+
+#Reverse read variables 
+reverse_reads <- list.files(path, pattern = "R2", full.names = TRUE)
+```
+
+# Create a list of sample names
+In Terminal, use ls command to list the file names and pipe the output to a new
+txt file called "samples_16S_subset.txt".
+```{r list sample names}
+#Remove _R[1,2].fastq.gz extension to obtain true sample names
+samples <- list()
+filenames <- scan("samples_16S_subset.txt",character())
+for(name in filenames){
+  sample <- gsub("_R[0-9].fastq.gz",'',name)
+  if(!sample %in% samples){
+  samples <- append(samples,sample)
+  }
+}
+#IMPORTANT: sort the 'samples' vector alphabetically so it matches with how R list the files in the path
+samples <- sort(unlist(samples))
+```
+
+#Create varibales for filtered forward and reverse reads
+```{r}
+filtered_forward_reads <- file.path(path, "filtered", paste0(samples,"_R1_filtered.fastq.gz"))
+
+filtered_reverse_reads <- file.path(path, "filtered", paste0(samples,"_R2_filtered.fastq.gz"))
+```
+
+
+#Assess Raw Read Quality
+The raw read quality for samples #2 and #9 is poor. These are pasteurized orange juice and pasteurized cider, respectively.
+```{r Assess Raw Read Quality}
+#Display quality plot for forward read samples
+forwardQualPlot <- plotQualityProfile(forward_reads)
+forwardQualPlot
+#Display quality plot for  reverse read samples
+reverseQualPlot <- plotQualityProfile(reverse_reads)
+reverseQualPlot
+```
+
+#primers and adapters from raw reads
+```{r primers info}
+fwd_primer <- "CADACTCCTACGGGAGGC"
+rev_primer <- "ATCCTGTTTGMTMCCCVCRC"
+rev_rc <- toString(reverseComplement(DNAString(rev_primer)))
+fwd_rc <- toString(reverseComplement(DNAString(fwd_primer)))
+
+```
+#Some additional steps before primer removal
+Following this tutorial: https://benjjneb.github.io/dada2/ITS_workflow.html
+
+```{r primer orientation}
+allOrients <- function(primer) {
+    # Create all orientations of the input sequence
+    require(Biostrings)
+    dna <- DNAString(primer)  # The Biostrings works w/ DNAString objects rather than character vectors
+    orients <- c(Forward = dna, Complement = complement(dna), Reverse = reverse(dna), 
+        RevComp = reverseComplement(dna))
+    return(sapply(orients, toString))  # Convert back to character vector
+}
+FWD.orients <- allOrients(fwd_primer)
+REV.orients <- allOrients(rev_primer)
+FWD.orients
+```
+
+#Pre-filtering N's from raw reads & Count primers
+```{r filter Ns from raw seqs}
+forward_reads.filtN <- file.path(path, "filtN", basename(forward_reads)) # Put N-filterd files in filtN/ subdirectory
+reverse_reads.filtN <- file.path(path, "filtN", basename(reverse_reads))
+filterAndTrim(forward_reads, forward_reads.filtN, reverse_reads, reverse_reads.filtN, maxN = 0, multithread = TRUE)
+primerHits <- function(primer, fn) {
+    # Counts number of reads in which the primer is found
+    nhits <- vcountPattern(primer, sread(readFastq(fn)), fixed = FALSE)
+    return(sum(nhits > 0))
+}
+rbind(FWD.ForwardReads = sapply(FWD.orients, primerHits, fn = forward_reads.filtN[[1]]), 
+    FWD.ReverseReads = sapply(FWD.orients, primerHits, fn = reverse_reads.filtN[[1]]), 
+    REV.ForwardReads = sapply(REV.orients, primerHits, fn = forward_reads.filtN[[1]]), 
+    REV.ReverseReads = sapply(REV.orients, primerHits, fn = reverse_reads.filtN[[1]]))
+```
+
+#Cutadapt
+```{r cutadapt}
+cutadapt <- "/home/yg225/cutadapt-venv/bin/cutadapt"
+path.cut <- file.path(path, "cutadapt")
+if(!dir.exists(path.cut)) dir.create(path.cut)
+forward_reads.cut <- file.path(path.cut, basename(forward_reads))
+reverse_reads.cut <- file.path(path.cut, basename(reverse_reads))
+R1.flags <- paste("-g", fwd_primer, "-a", rev_rc)
+R2.flags <- paste("-G", rev_primer, "-A", fwd_rc)
+# Run Cutadapt
+for(i in seq_along(forward_reads)) {
+  system2(cutadapt,args = c(R1.flags, R2.flags, "-n", 2, "-m", 1,
+  # -n 2 required to remove FWD and REV from reads
+  # -m 1 required to prevent error in PlotQualityProfile post cutadapt
+  "-o", forward_reads.cut[i], "-p", reverse_reads.cut[i], # output files
+  forward_reads.filtN[i], reverse_reads.filtN[i], "--discard-untrimmed",
+  "--report=minimal"))
+}
 
 ```
 
+```{r post-cutadapt check}
+rbind(FWD.ForwardReads = sapply(FWD.orients, primerHits, fn = forward_reads.cut[[1]]), 
+    FWD.ReverseReads = sapply(FWD.orients, primerHits, fn = reverse_reads.cut[[1]]), 
+    REV.ForwardReads = sapply(REV.orients, primerHits, fn = forward_reads.cut[[1]]), 
+    REV.ReverseReads = sapply(REV.orients, primerHits, fn = reverse_reads.cut[[1]]))
+
+```
+
+```{r Assess Raw Read Quality}
+#Display quality plot for forward read samples
+forwardQualPlot_cut <- plotQualityProfile(forward_reads.cut)
+#Display quality plot for  reverse read samples
+reverseQualPlot_cut <- plotQualityProfile(reverse_reads.cut)
+```
+The primer-free sequence files are now ready to be analyzed through the DADA2 pipeline!
