@@ -286,3 +286,92 @@ taxa_print <- taxa
 rownames(taxa_print) <- NULL
 View(taxa_print)
 ```
+# Prepare data for export!
+## 1. ASV Table
+```{r}
+# Prep the ASV table
+samples_out <- rownames(seqtab_nochim)
+
+# Extract sample names from the FASTQ file name
+sample_names_reformatted <- gsub("_10471140_L9NR7_R1_filtered.fastq.gz","",samples_out)
+
+# Replace the names in our seqtab
+rownames(seqtab_nochim) <- sample_names_reformatted
+
+#Intuition check
+stopifnot(rownames(seqtab_nochim) == sample_names_reformatted)
+
+## Modify the ASV names and then save as a fasta file ##
+# First we give headers more manageable name
+asv_seqs <- colnames(seqtab_nochim)
+
+# Make headers for our ASV seq fasta file, which will be our asv names 
+asv_headers <- vector(dim(seqtab_nochim)[2], mode = "character")
+for(i in seq(dim(seqtab_nochim)[2])){
+  asv_headers[i] <- paste(">ASV",i,sep = "_")
+}
+asv_tab <- t(seqtab_nochim)
+row.names(asv_tab) <- sub(">","", asv_headers)
+write.table(asv_tab, "Data_16S/ASV_counts.tsv", sep = "\t", quote = FALSE, col.names = NA)
+
+# Write out the fasta file for reference later on for what seq matchs what ASV
+asv_fasta <- c(rbind(asv_headers, asv_seqs))
+write(asv_fasta, "Data_16S/ASVs.fasta")
+```
+
+## 2. Taxonomy table
+```{r prepare taxonomy table}
+## Prepare tax-table
+# Add the ASV sequences from the row names to a column
+new_tax_tab <- taxa %>% as.data.frame() %>% rownames_to_column(var = "ASVseqs")
+head(new_tax_tab)
+
+#Intuition check
+stopifnot(new_tax_tab$ASVseqs == colnames(seqtab_nochim))
+
+# Add ASV names
+rownames(new_tax_tab) <- rownames(asv_tab)
+
+# Add new column with ASV names
+asv_tax <-new_tax_tab %>% mutate(ASV = rownames(asv_tab)) %>% 
+  dplyr::select(Kingdom, Phylum, Class, Order, Family, Genus, Species, ASV, ASVseqs)
+
+#View(asv_tax)
+
+stopifnot(asv_tax$ASV == rownames(asv_tax), rownames(asv_tax) == rownames(asv_tab))
+
+write.table(asv_tax, "Data_16S/ASV_taxonomy.tsv", sep = "\t", quote = FALSE, col.names = NA)
+
+```
+## 3. Metadata
+```{r metadata}
+library(readr)
+metadata <- read_csv("data/16S_metadata.csv", col_types = cols(Date = col_skip(), V1 = col_skip()))
+colnames(metadata)[1] <- "names"
+metadata$TrueSampleOrControl <- ifelse(metadata$Replicate == "NC","Control","True Sample")
+
+harvest_data <- read_csv("data/harvest_data.csv")
+
+finished_product_data <- read_csv("data/finished_product_data.csv")
+
+full_metadata <- metadata %>% left_join(y = harvest_data,by = "SampleLot") %>% left_join(y = finished_product_data, by = "SampleLot")
+
+#Remove samples that are present in the metadata but were not sequenced
+full_metadata <- full_metadata[-c(10:12),]
+full_metadata <- full_metadata[-c(14:15,50),]
+
+#rearrage rows to match ASV table columns
+full_metadata <- full_metadata[match(colnames(asv_tab), full_metadata$names), ]
+stopifnot(sort(full_metadata$names) == sort(sample_names_reformatted))
+rownames(full_metadata) <- full_metadata$names
+```
+
+```{r phyloseq-handoff}
+full_metadata <- sample_data(full_metadata)
+row.names(full_metadata) <- full_metadata$names
+
+raw_physeq <- phyloseq(otu_table(asv_tab, taxa_are_rows = TRUE),
+                       sample_data(full_metadata), tax_table(as.matrix(asv_tax)))
+raw_physeq
+save(raw_physeq, file = paste0("data/raw_physeq.RData"))
+```
