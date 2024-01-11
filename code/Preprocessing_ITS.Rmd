@@ -108,8 +108,10 @@ reverseQual110_plot <- plotQualityProfile(reverse_reads[101:110])
 reverseQual117_plot <- plotQualityProfile(reverse_reads[111:117])
 
 #Total count of forward reads generated = 5,116,070
-#Total count of reads generated = 2 x 5,116,070 = 10,232,140
-#Total bp output = 250 bp x 10,232,140 = 2.558 Gbp
+#Total count of ITS reads generated = 2 x 5,116,070 = 10,232,140
+#Total count of 16S (subset) reads generated = 2 x 230,339 = 460,678
+#Total bp output = 250 bp x 10,692,818 = 2.673 Gbp
+#This output is much lower than the minimum output ~7.5 Gbp promised by Illumina
 
 ```
 List of bad quality samples
