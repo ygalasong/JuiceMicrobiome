@@ -68,21 +68,60 @@ The raw read quality for samples #2 and #9 is poor. These are pasteurized orange
 ```{r Assess Raw Read Quality}
 #Display quality plot for forward read samples
 forwardQual10_plot <- plotQualityProfile(forward_reads[1:10])
+#Total read count 522954
 forwardQual20_plot <- plotQualityProfile(forward_reads[11:20])
+#Total read count 482898
 forwardQual30_plot <- plotQualityProfile(forward_reads[21:30])
+#Total read count 378849
 forwardQual40_plot <- plotQualityProfile(forward_reads[31:40])
+#Total read count 404119
 forwardQual50_plot <- plotQualityProfile(forward_reads[41:50])
+#Total read count 396690
 forwardQual60_plot <- plotQualityProfile(forward_reads[51:60])
+#Total read count 469516
 forwardQual70_plot <- plotQualityProfile(forward_reads[61:70])
+#Total read count 493893
 forwardQual80_plot <- plotQualityProfile(forward_reads[71:80])
+#Total read count 437201
 forwardQual90_plot <- plotQualityProfile(forward_reads[81:90])
+#Total read count 435716
 forwardQual100_plot <- plotQualityProfile(forward_reads[91:100])
-forwardQual112_plot <- plotQualityProfile(forward_reads[101:112])
+#Total read count 455482
+forwardQual110_plot <- plotQualityProfile(forward_reads[101:110])
+#Total read count 427092
+forwardQual117_plot <- plotQualityProfile(forward_reads[111:117])
+#Total read count 211660
+#Total count of forward reads generated = 5,116,070
 
 #Display quality plot for  reverse read samples
 reverseQual10_plot <- plotQualityProfile(reverse_reads[1:10])
 reverseQual20_plot <- plotQualityProfile(reverse_reads[11:20])
 reverseQual30_plot <- plotQualityProfile(reverse_reads[21:30])
-reverseQual47_plot <- plotQualityProfile(reverse_reads[31:47])
+reverseQual40_plot <- plotQualityProfile(reverse_reads[31:40])
+reverseQual50_plot <- plotQualityProfile(reverse_reads[41:50])
+reverseQual60_plot <- plotQualityProfile(reverse_reads[51:60])
+reverseQual70_plot <- plotQualityProfile(reverse_reads[61:70])
+reverseQual80_plot <- plotQualityProfile(reverse_reads[71:80])
+reverseQual90_plot <- plotQualityProfile(reverse_reads[81:90])
+reverseQual100_plot <- plotQualityProfile(reverse_reads[91:100])
+reverseQual110_plot <- plotQualityProfile(reverse_reads[101:110])
+reverseQual117_plot <- plotQualityProfile(reverse_reads[111:117])
+
+#Total count of forward reads generated = 5,116,070
+#Total count of reads generated = 2 x 5,116,070 = 10,232,140
+#Total bp output = 250 bp x 10,232,140 = 2.558 Gbp
 
 ```
+List of bad quality samples
+ITS9 (forward & reverse)
+ITS10 (forward & reverse)
+ITS11 (forward & reverse)
+ITS12 (forward & reverse)
+ITS26 (forward & reverse)
+ITS27 (forward & reverse)
+ITS 29 (reverse)
+ITSExtNeg1
+ITSExtNeg3
+ITSPCRNeg1
+ITSPCRNeg2
+ITSPCRNeg3
