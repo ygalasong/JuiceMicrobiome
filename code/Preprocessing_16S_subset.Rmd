@@ -69,9 +69,12 @@ The raw read quality for samples #2 and #9 is poor. These are pasteurized orange
 #Display quality plot for forward read samples
 forwardQualPlot <- plotQualityProfile(forward_reads)
 forwardQualPlot
+# Total forward read count 230,339
 #Display quality plot for  reverse read samples
 reverseQualPlot <- plotQualityProfile(reverse_reads)
 reverseQualPlot
+# Total reverse read count 230,339
+# Total bp output = 230,339 x 2 x 250 = 115,169,500
 ```
 
 #primers and adapters from raw reads
