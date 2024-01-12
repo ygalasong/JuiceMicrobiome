@@ -66,9 +66,11 @@ filtered_reverse_reads <- file.path(path, "filtered", paste0(samples,"_R2_filter
 
 ### Assess Raw Read Quality
 
-This chunk would take long to run.
+This chunk would take long to run during Rmd knitting.
+Therefore, after inspecting the plots, all plotQualityProfile chunks' settings 
+were changed to 'show nothing (don't run code)'.
 
-```{r Assess Raw Read Quality}
+```{r Assess Raw Read Quality, eval=FALSE, include=FALSE}
 #Display quality plot for forward read samples
 forwardQual10_plot <- plotQualityProfile(forward_reads[1:10])
 #Total read count 522954
@@ -199,7 +201,7 @@ rbind(FWD.ForwardReads = sapply(FWD.orients, primerHits, fn = forward_reads.cut[
 
 ```
 
-```{r Assess Raw Read Quality Post-cutadapt}
+```{r Assess Raw Read Quality Post-cutadapt, eval=FALSE, include=FALSE}
 #Display quality plot for forward read samples
 forwardQual10_plot.cut <- plotQualityProfile(forward_reads.cut[1:10])
 forwardQual20_plot.cut <- plotQualityProfile(forward_reads.cut[11:20])
@@ -229,3 +231,126 @@ reverseQual110_plot.cut <- plotQualityProfile(reverse_reads.cut[101:110])
 reverseQual117_plot.cut <- plotQualityProfile(reverse_reads.cut[111:117])
 ```
 The primer-free sequence files are now ready to be analyzed through the DADA2 pipeline!
+
+### Filter amd Trim Reads
+```{r Filter and Trim}
+filtered_out <- filterAndTrim(forward_reads.cut, filtered_forward_reads, reverse_reads.cut, filtered_reverse_reads, maxN = 0, maxEE = c(2,2), truncQ = 2, rm.phix = TRUE, compress = TRUE, multithread = TRUE)
+
+head(filtered_out)
+
+```
+
+#### Quality plot of trimmed & filtered reads
+```{r Assess Raw Read Quality Post-cutadapt, eval=FALSE, include=FALSE}
+#Display quality plot for forward read samples
+forwardQual10_plot.filt <- plotQualityProfile(filtered_forward_reads[1:10])
+forwardQual20_plot.filt <- plotQualityProfile(filtered_forward_reads[11:20])
+forwardQual30_plot.filt <- plotQualityProfile(filtered_forward_reads[21:30])
+forwardQual40_plot.filt <- plotQualityProfile(filtered_forward_reads[31:40])
+forwardQual50_plot.filt <- plotQualityProfile(filtered_forward_reads[41:50])
+forwardQual60_plot.filt <- plotQualityProfile(filtered_forward_reads[51:60])
+forwardQual70_plot.filt <- plotQualityProfile(filtered_forward_reads[61:70])
+forwardQual80_plot.filt <- plotQualityProfile(filtered_forward_reads[71:80])
+forwardQual90_plot.filt <- plotQualityProfile(filtered_forward_reads[81:90])
+forwardQual100_plot.filt <- plotQualityProfile(filtered_forward_reads[91:100])
+forwardQual110_plot.filt <- plotQualityProfile(filtered_forward_reads[101:110])
+forwardQual117_plot.filt <- plotQualityProfile(filtered_forward_reads[111:117])
+
+#Display quality plot for  reverse read samples
+reverseQual10_plot.filt <- plotQualityProfile(filtered_reverse_reads[1:10])
+reverseQual20_plot.filt <- plotQualityProfile(filtered_reverse_reads[11:20])
+reverseQual30_plot.filt <- plotQualityProfile(filtered_reverse_reads[21:30])
+reverseQual40_plot.filt <- plotQualityProfile(filtered_reverse_reads[31:40])
+reverseQual50_plot.filt <- plotQualityProfile(filtered_reverse_reads[41:50])
+reverseQual60_plot.filt <- plotQualityProfile(filtered_reverse_reads[51:60])
+reverseQual70_plot.filt <- plotQualityProfile(filtered_reverse_reads[61:70])
+reverseQual80_plot.filt <- plotQualityProfile(filtered_reverse_reads[71:80])
+reverseQual90_plot.filt <- plotQualityProfile(filtered_reverse_reads[81:90])
+reverseQual100_plot.filt <- plotQualityProfile(filtered_reverse_reads[91:100])
+reverseQual110_plot.filt <- plotQualityProfile(filtered_reverse_reads[101:110])
+reverseQual117_plot.filt <- plotQualityProfile(filtered_reverse_reads[111:117])
+```
+
+### Generate an Error Model
+```{r learn errors}
+err_forward_reads <- learnErrors(filtered_forward_reads, multithread = TRUE)
+err_reverse_reads <- learnErrors(filtered_reverse_reads, multithread = TRUE)
+error_model_forward <- plotErrors(err_forward_reads, nominalQ = TRUE)
+error_model_forward
+error_model_reverse <- plotErrors(err_reverse_reads, nominalQ = TRUE)
+error_model_reverse
+```
+
+### Infer Amplicon Sequence Variants (ASVs) from the forward and reverse reads
+```{r DADA2}
+# Run DADA2 on forward reads
+dada_forward <- dada(filtered_forward_reads, err = err_forward_reads, multithread = TRUE)
+head(dada_forward)
+
+# Run DADA2 on reverse reads
+dada_reverse <- dada(filtered_reverse_reads, err = err_reverse_reads, multithread = TRUE)
+head(dada_reverse)
+```
+### Merge the forward and reverse ASVs
+```{r Merge}
+# Merge forward ASVs and reverse ASVs
+merged_amplicons <- mergePairs(dadaF = dada_forward, 
+                               derepF = filtered_forward_reads, 
+                               dadaR = dada_reverse, 
+                               derepR = filtered_reverse_reads,
+                               verbose = TRUE)
+#Inspect the output
+head(merged_amplicons)
+
+```
+
+### Generate an ASV count table
+```{r seqtab}
+seqtab <- makeSequenceTable(samples = merged_amplicons)
+
+# size of count table
+dim(seqtab)
+
+# distribution of sequence lengths of all ASVs
+hist(nchar(getSequences(seqtab)), main = "Length distribution of ASVs", 
+     xlab = "ASV length (bp)")
+
+```
+
+### Search and Remove Chimeras
+```{r remove chimeras}
+seqtab_nochim <- removeBimeraDenovo(seqtab, verbose = TRUE, multithread = TRUE)
+
+# percentage of chimeras removed
+chim_removed <- (1-sum(seqtab_nochim)/sum(seqtab))*100
+
+```
+
+Chimeras represented `r chim_removed`% of merged reads.
+### Tracking changes in read counts throughout the workflow
+```{r track changes}
+# A function to count number of reads
+getN <- function(x) sum(getUniques(x))
+
+# A table to track read counts
+track <- cbind(filtered_out, sapply(dada_forward, getN),
+               sapply(dada_reverse, getN),
+               sapply(merged_amplicons, getN),
+               rowSums(seqtab_nochim))
+# Rename columns and rows
+colnames(track) <- c("input","filtered","denoisedF","denoisedR","merged","chimera_free")
+rownames(track) <- samples
+
+head(track)
+# Alternatively, we can look at the percentage of reads lost during each step
+track_pct <- track %>% as.data.frame() %>% rownames_to_column(var = "sample") %>%
+  rowwise() %>% mutate(filtered = filtered/input, denoisedF = denoisedF/input,
+                       denoisedR = denoisedR/input, merged = merged/input, chimera_free = chimera_free/input)
+head(track_pct)
+
+# Display these changes as a line plot
+
+track_plot <- track %>% as.data.frame() %>% rownames_to_column(var = "samples") %>% pivot_longer(input:chimera_free, names_to = "read_type", values_to = "num_reads") %>% mutate(read_type = fct_relevel(read_type, "input", "filtered", "denoisedF", "denoisedR","merged","chimera_free")) %>% ggplot(aes(x = read_type, y = num_reads, fill = read_type)) + geom_line(aes(group = samples), color = "grey") + geom_point(shape = 21, size = 3, alpha = 0.8) + scale_fill_brewer(palette = "RdYlGn") + theme_bw()+ labs(x = "Filtering Step", y = "Number of sequences") + theme(legend.position = "bottom", legend.title = element_blank(), axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
+
+track_plot
+```
