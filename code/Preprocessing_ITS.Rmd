@@ -354,3 +354,11 @@ track_plot <- track %>% as.data.frame() %>% rownames_to_column(var = "samples") 
 
 track_plot
 ```
+
+### Assign Taxonomy
+We will use UNITE database <https://unite.ut.ee/> to train the classifier.
+```{r assign taxonomy}
+UNITE_path <- "/workdir/yg225/JuiceMicrobiome/UNITE/sh_general_release_dynamic_25.07.2023.fasta"
+taxa <- assignTaxonomy(seqtab_nochim, UNITE_path, multithread = TRUE)
+```
+#### Inspecting
