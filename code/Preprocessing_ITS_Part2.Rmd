@@ -1,0 +1,37 @@
+---
+title: "Preprocessing_ITS_Part2"
+author: "Yupawadee Galasong"
+date: "`r Sys.Date()`"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+# Goals
+
+The goal of this pre-processing is to remove the following ASVs from our samples:
+1. Mitochondria ASVs
+2. Chloroplast ASVs
+3a. ASVs found in controls
+3b. Control samples
+4. ASVs of mock community
+
+## Load Packages and Functions
+```{r load packages}
+
+pacman::p_load(tidyverse, phyloseq, install = FALSE)
+
+#source("code/functions.R")
+```
+
+## Load raw phyloseq data from DADA2 workflow
+```{r load phyloseq obj}
+
+load(file = "data/raw_physeq.RData")
+#### Assessing mock community sequencing results
+
+```{r}
+library(devtools)
+install_github("microsud/chkMocks")
+
+```
+
