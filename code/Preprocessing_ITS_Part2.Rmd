@@ -6,16 +6,21 @@ output: html_document
 editor_options: 
   chunk_output_type: console
 ---
-# Goals
 
 The goal of this pre-processing is to remove the following ASVs from our samples:
-1. Mitochondria ASVs
-2. Chloroplast ASVs
-3a. ASVs found in controls
-3b. Control samples
-4. ASVs of mock community
 
-## Load Packages and Functions
+1\. Mitochondria ASVs
+
+2\. Chloroplast ASVs
+
+3a. ASVs found in controls
+
+3b. Control samples
+
+4\. ASVs of mock community
+
+### Load Packages and Functions
+
 ```{r load packages}
 
 pacman::p_load(tidyverse, phyloseq, install = FALSE)
@@ -23,15 +28,35 @@ pacman::p_load(tidyverse, phyloseq, install = FALSE)
 #source("code/functions.R")
 ```
 
-## Load raw phyloseq data from DADA2 workflow
+### Load raw phyloseq data from DADA2 workflow
+
 ```{r load phyloseq obj}
 
-load(file = "data/raw_physeq.RData")
-#### Assessing mock community sequencing results
+load(file = "Data_ITS/raw_physeq.RData")
+```
 
-```{r}
+### Assessing mock community sequencing results
+
+```{r 16S mock only, eval=FALSE, include=FALSE}
 library(devtools)
 install_github("microsud/chkMocks")
 
 ```
+The mock communities we used is ZymoBIOMICS Microbial Community DNA Standard II (Log Distribution) which has the theoretical composition of genomic DNA from *Cryptococcus neoformans* (0.00089%) and *Saccharomyces cerevisiae* (0.89%). The remaining genomic DNA is from bacteria, which we will examine more closely & more systematically using the package `r chkMocks`. For the ITS sequencing run,
+we will mainly evaluate the mock community for the presence/absence of the taxa.
+
+```{r}
+# Select only mock communities
+mock_physeq <- subset_samples(raw_physeq, sample_names(raw_physeq) %in% c("ITSMock1","ITSMock2","ITSMock3"))
+# Just a list of ASVs (no abundance)
+taxa_names(mock_physeq %>% subset_taxa(.,taxa_sums(mock_physeq)>0))
+
+# Genus and Species of ASVs detected in mock communites
+mock_physeq@tax_table[taxa_names(mock_physeq %>% subset_taxa(.,taxa_sums(mock_physeq)>0))][,c("Genus","Species")]
+
+# List ASVs of abundance > 0 in mock communites
+get_taxa(mock_physeq %>% subset_taxa(.,taxa_sums(mock_physeq)>0))
+
+```
+As we can see, both *Cryptococcus neoformans* and *Saccharomyces cerevisiae* are present in the mock community samples that we sequenced. Additionally, the number of ASVs assigned to *S. cerevisiae* is approximately 1000 times more than ASVs assigned to *C. neoformans*. Our sequencing run did not deviate from the theoretical composition of the mock community.
 

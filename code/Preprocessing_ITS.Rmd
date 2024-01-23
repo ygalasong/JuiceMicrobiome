@@ -494,10 +494,5 @@ raw_physeq
 # Save the phyloseq object for downstream analysis
 save(raw_physeq, file = paste0("Data_ITS/raw_physeq.RData"))
 ```
-#### Assessing mock community sequencing results
 
-```{r}
-#library(devtools)
-#install_github("microsud/chkMocks")
-
-```
+We will continue in Part 2!
