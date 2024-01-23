@@ -1,0 +1,35 @@
+---
+title: "Alpha_Diversity_ITS"
+author: "Yupawadee Galasong"
+date: "`r Sys.Date()`"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+### Load packages
+```{r}
+library(phyloseq)
+library(iNEXT)
+library(tidyverse)
+library(ggpubr)
+
+```
+
+### Set up color preferences
+<https://coolors.co/>
+```{r}
+
+# Specify colors
+Trial_color <- c("black","green","red")
+# Specify which trial each color is for
+names(trial_color) <- c(1,2,3)
+
+# Example of how to use color preferences in ggplot
+#ggplot(data = final_physeq@sam_data, aes(x = malic, y = fructose))+geom_point(aes(color = Trial))+scale_color_manual(values = trial_color)
+
+Beverage_color <- c("orange","red")
+names(Beverage_color) <- c("Orange Juice","Cider")
+
+Treatment_color
+
+```

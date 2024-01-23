@@ -10,10 +10,7 @@ editor_options:
 ### Load Packages and Functions
 
 ```{r load packages}
-
 pacman::p_load(tidyverse, phyloseq, install = FALSE)
-
-#source("code/functions.R")
 ```
 
 ### Load raw phyloseq data from DADA2 workflow
@@ -115,10 +112,13 @@ ggplot(data = df, aes(x = Index, y = LibrarySize, color = Sample_or_Control))+
   geom_point()
 
 ```
-There is an outlier - a negative control samples with ~30,000 reads.
+
+There is an outlier - a negative control samples with \~30,000 reads.
 
 ##### Identify contaminants - Prevalence method
-"In our phyloseq object, `"Sample_or_Control"` is the sample variable that holds the negative control information. We’ll summarize that data as a logical variable, with TRUE for control samples, as that is the form required by `isContaminant`."
+
+"In our phyloseq object, `"Sample_or_Control"` is the sample variable that holds the negative control information. We'll summarize that data as a logical variable, with TRUE for control samples, as that is the form required by `isContaminant`."
+
 ```{r}
 sample_data(raw_physeq_cleaned)$is.neg <- 
   sample_data(raw_physeq_cleaned)$Sample_or_Control == "Control Sample"
@@ -145,6 +145,7 @@ taxa_names(contam)
 ```
 
 ##### Plot the number of times the contaminant taxa were observed in samples
+
 ```{r}
 # Make phyloseq object of presence-absence (pa) in negative controls and true sample
 # Present = 1, Absent = 0
@@ -161,6 +162,7 @@ ggplot(data = df.pa, aes(x = pa.neg, y = pa.pos, color = contaminant))+
 ```
 
 ##### Remove contaminant sequences
+
 ```{r}
 
 final_physeq <- raw_physeq_cleaned %>% 
