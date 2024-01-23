@@ -7,18 +7,6 @@ editor_options:
   chunk_output_type: console
 ---
 
-The goal of this pre-processing is to remove the following ASVs from our samples:
-
-1\. Mitochondria ASVs
-
-2\. Chloroplast ASVs
-
-3a. ASVs found in controls
-
-3b. Control samples
-
-4\. ASVs of mock community
-
 ### Load Packages and Functions
 
 ```{r load packages}
@@ -42,21 +30,145 @@ library(devtools)
 install_github("microsud/chkMocks")
 
 ```
-The mock communities we used is ZymoBIOMICS Microbial Community DNA Standard II (Log Distribution) which has the theoretical composition of genomic DNA from *Cryptococcus neoformans* (0.00089%) and *Saccharomyces cerevisiae* (0.89%). The remaining genomic DNA is from bacteria, which we will examine more closely & more systematically using the package `r chkMocks`. For the ITS sequencing run,
-we will mainly evaluate the mock community for the presence/absence of the taxa.
+
+The mock communities we used is ZymoBIOMICS Microbial Community DNA Standard II (Log Distribution) which has the theoretical composition of genomic DNA from *Cryptococcus neoformans* (0.00089%) and *Saccharomyces cerevisiae* (0.89%). The remaining genomic DNA is from bacteria, which we will examine more closely & more systematically using the package `r chkMocks`. For the ITS sequencing run, we will mainly evaluate the mock community for the presence/absence of the taxa.
 
 ```{r}
 # Select only mock communities
-mock_physeq <- subset_samples(raw_physeq, sample_names(raw_physeq) %in% c("ITSMock1","ITSMock2","ITSMock3"))
-# Just a list of ASVs (no abundance)
-taxa_names(mock_physeq %>% subset_taxa(.,taxa_sums(mock_physeq)>0))
+mock_physeq <- prune_samples(raw_physeq, samples = c("ITSMock1","ITSMock2","ITSMock3"))
+# Select only ASVs of abundance > 0
+mock_physeq <- prune_taxa(taxa_sums(mock_physeq)>0,mock_physeq)
 
 # Genus and Species of ASVs detected in mock communites
-mock_physeq@tax_table[taxa_names(mock_physeq %>% subset_taxa(.,taxa_sums(mock_physeq)>0))][,c("Genus","Species")]
+mock_physeq@tax_table[,c("Genus","Species")]
 
-# List ASVs of abundance > 0 in mock communites
-get_taxa(mock_physeq %>% subset_taxa(.,taxa_sums(mock_physeq)>0))
+# Calculate the ratio of Saccharomyces: Cryptococcus in each mock samples
+mock_physeq@otu_table["ASV_7"]/
+  ((mock_physeq@otu_table["ASV_347"]+
+      (mock_physeq@otu_table["ASV_377"])))
 
 ```
-As we can see, both *Cryptococcus neoformans* and *Saccharomyces cerevisiae* are present in the mock community samples that we sequenced. Additionally, the number of ASVs assigned to *S. cerevisiae* is approximately 1000 times more than ASVs assigned to *C. neoformans*. Our sequencing run did not deviate from the theoretical composition of the mock community.
 
+As we can see, both *Cryptococcus neoformans* and *Saccharomyces sp.* are present in the mock community samples that we sequenced. On average, the number of ASVs assigned to *Saccharomyces sp.* is approximately 1000 times more than ASVs assigned to *C. neoformans*, with ITSMock1 being the only exception. Overall, our sequencing run did not deviate too much from the theoretical composition of the mock community.
+
+### Removing unwanted ASVs
+
+The goal of this pre-processing is to remove the following ASVs from our samples: 1. Mitochondria ASVs 2. Chloroplast ASVs 3a. ASVs found in controls 3b. Control samples 4. ASVs of mock community 5. ASVs undefined at Phylum level 6. ASVs of 0 abundance
+
+Other than ASVs found in control samples, we can remove unwanted ASVs easily using subset\_ or prune\_ commands in phyloseq.
+
+```{r}
+raw_physeq_cleaned <- raw_physeq %>% 
+  # Remove mitochondria
+  subset_taxa(Family != "Mitochondria" | is.na(Family)) %>%
+  # Remove chloroplast
+  subset_taxa(Order != "Chloroplast" | is.na(Order)) %>%
+  # Remove the mock samples
+  prune_samples((sample_names(.) != sample_names(mock_physeq)),.) %>%
+  # Remove ASVs that have abundance = 0 across samples
+  prune_taxa(taxa_sums(.)>0,.) %>%
+  # Remove ASVs undefined at Phylum level
+  subset_taxa(!is.na(Phylum))
+
+```
+
+Next, let's look at the PCR negative control and DNA extraction negative control samples.
+
+```{r}
+ctrl_physeq <- raw_physeq %>% 
+  # Subset only control samples
+  subset_samples(Sample_or_Control == "Control Sample") %>%
+  # Exclude mock samples
+  prune_samples(sample_names(.) != sample_names(mock_physeq),.) 
+
+# Confirm that only PCR negative controls and extraction negative controls are 
+# in this phyloseq object
+sample_names(ctrl_physeq)
+
+# Remove taxa with abundance = 0 from the control samples
+ctrl_physeq <- prune_taxa(taxa_sums(ctrl_physeq)>0,ctrl_physeq)
+
+# Genus and Species of ASVs detected in control samples
+ctrl_physeq@tax_table[,c("Genus","Species")]
+```
+
+It turned out that some taxa are present in both negative controls and true samples. We will use a statistical package `r decontam` to determine which contaminant sequences should be removed.
+
+#### Removal of contaminant sequences with decontam
+
+Following the tutorial <https://benjjneb.github.io/decontam/vignettes/decontam_intro.html>
+
+```{r}
+library(devtools)
+#devtools::install_github("benjjneb/decontam")
+library(decontam)
+```
+
+##### Inspect library sizes
+
+```{r}
+df <- as.data.frame(sample_data(raw_physeq_cleaned))
+df$LibrarySize <- sample_sums(raw_physeq_cleaned)
+df <- df[order(df$LibrarySize),]
+df$Index <- seq(nrow(df))
+ggplot(data = df, aes(x = Index, y = LibrarySize, color = Sample_or_Control))+
+  geom_point()
+
+```
+There is an outlier - a negative control samples with ~30,000 reads.
+
+##### Identify contaminants - Prevalence method
+"In our phyloseq object, `"Sample_or_Control"` is the sample variable that holds the negative control information. We’ll summarize that data as a logical variable, with TRUE for control samples, as that is the form required by `isContaminant`."
+```{r}
+sample_data(raw_physeq_cleaned)$is.neg <- 
+  sample_data(raw_physeq_cleaned)$Sample_or_Control == "Control Sample"
+
+# Add 'Batch' information for contaminant identification
+raw_physeq_cleaned@sam_data["ITSExtNeg1","Trial"] = 1
+raw_physeq_cleaned@sam_data["ITSExtNeg2","Trial"] = 2
+raw_physeq_cleaned@sam_data["ITSExtNeg3","Trial"] = 3
+raw_physeq_cleaned@sam_data["ITSPCRNeg1","Trial"] = 1
+raw_physeq_cleaned@sam_data["ITSPCRNeg2","Trial"] = 2
+raw_physeq_cleaned@sam_data["ITSPCRNeg3","Trial"] = 3
+
+# threshold = The probability threshold below which (strictly less than) the null-hypothesis (not a contaminant) should be rejected in favor of the alternate hypothesis (contaminant)
+# Increasing the threshold generally results in more sequences being flagged as contaminant.
+contamdf.prev <- isContaminant(raw_physeq_cleaned, method = "prevalence",
+                               neg = "is.neg", 
+                               threshold = 0.5, 
+                               batch = sample_data(raw_physeq_cleaned)$Trial)
+table(contamdf.prev$contaminant)
+
+# Which sequence is the contaminant?
+contam <- subset_samples(raw_physeq_cleaned, contamdf.prev$contaminant)
+taxa_names(contam)
+```
+
+##### Plot the number of times the contaminant taxa were observed in samples
+```{r}
+# Make phyloseq object of presence-absence (pa) in negative controls and true sample
+# Present = 1, Absent = 0
+pa <- transform_sample_counts(raw_physeq_cleaned, function(abund) 1*(abund>0))
+pa.neg <- prune_samples(sample_data(pa)$Sample_or_Control == "Control Sample", pa)
+pa.pos <- prune_samples(sample_data(pa)$Sample_or_Control == "True Sample", pa)
+
+# Make data frame of prevalence in positive and negative samples
+df.pa <- data.frame(pa.pos = taxa_sums(pa.pos), pa.neg = taxa_sums(pa.neg),
+                    contaminant = contamdf.prev$contaminant)
+ggplot(data = df.pa, aes(x = pa.neg, y = pa.pos, color = contaminant))+
+  geom_point(alpha = 0.5)+ xlab("Prevalence (Negative Controls)") + 
+  ylab("Prevalence (True Samples)")
+```
+
+##### Remove contaminant sequences
+```{r}
+
+final_physeq <- raw_physeq_cleaned %>% 
+  # Remove contaminant sequences
+  prune_taxa(!(taxa_names(.) %in% taxa_names(contam)),.) %>%
+  # Remove control samples as they have served their purpose
+  subset_samples(Sample_or_Control != "Control Sample")
+save(final_physeq, file = "Data_ITS/final_physeq.RData")
+```
+
+Now, we have a clean phyloseq object ready for diversity analyses!
