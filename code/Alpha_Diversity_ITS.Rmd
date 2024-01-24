@@ -50,6 +50,8 @@ names(Stage_shape) <- c("Beginning", "Day14", "End")
 Spoiled_color <- c("#E08E45", "#6B2737")
 names(Spoiled_color) <- c("Not spoiled", "Spoiled")
 
+Thermal_color <- c("#EB4511","#1C3144","#FFBA08")
+names(Thermal_color) <- c("Thermal", "Non-thermal", "No Treatment")
 ```
 ### Set up color & shape preferences - Taxanomical ranks
 ```{r}
@@ -103,8 +105,114 @@ RichnessPlot2 <- div_iNEXT %>% filter(Diversity == "Species richness") %>%
   theme(axis.text = element_text(size = 12),
         axis.title = element_text(size = 14),
         legend.text = element_text(size = 12))
-
+RichnessPlot1
+RichnessPlot2
 ```
 
 #### Rarefaction curve
+```{r}
+# 1. Extract the observed richness from iNEXT output
+obs_rich <- iNEXT_output$iNextEst$size_based %>%
+  dplyr::filter(Order.q == 0) %>%
+  dplyr::filter(Method == "Observed") %>%
+  # Include sample metadata
+  left_join(., metadata, by = "Assemblage") 
+  
 
+rarefaction_curve <- 
+  # 2. Extract richness calculated from rarefied samples
+  iNEXT_output$iNextEst$size_based %>% 
+  dplyr::filter(Order.q == 0) %>%
+  dplyr::filter(Method == "Rarefaction")%>%
+  # Include sample metadata
+  left_join(., metadata, by = "Assemblage") %>% 
+  # 3. Plot rarefaction curve
+  ggplot(aes(x = m/1000, y = qD, color = Treatment, group = Assemblage))+
+  scale_color_manual(values = Treatment_color) + 
+  geom_line()+ geom_point(data = obs_rich, 
+             aes(x = m/1000, y = qD, color = Treatment))+
+  facet_grid(.~Beverage)+theme_classic()+
+  labs(x = "Number of Sequences (x1000)", y = "Species Richness")
+
+rarefaction_curve
+
+```
+
+### Diversity boxplot
+```{r}
+# Add another grouping variable - Thermal Vs Non-thermal Vs No Treatment
+obs_rich <- obs_rich %>% 
+  mutate(Thermal = case_when(
+    (Treatment == "Pasteurization")~"Thermal",
+    (Treatment == "HPP")~"Non-thermal",
+    (Treatment == "HPP + DMDC + NG")~"Non-thermal",
+    (Treatment == "Pasteurization + DMDC + NG")~"Thermal",
+    (Treatment == "Pasteurization + SB + PS")~"Thermal",
+    (Treatment == "UV")~"Non-thermal",
+    (Treatment == "No Treatment")~"No Treatment"))
+
+# Diversity in orange juice
+boxplot_OJ <- obs_rich %>%
+  dplyr::filter(Beverage == "Orange Juice") %>%
+  ggplot(aes(x = Thermal, y = qD, color = Thermal))+
+  geom_boxplot(aes(fill = Thermal), alpha = 0.5)+
+  scale_fill_manual(values = Thermal_color)+
+  scale_color_manual(values = Thermal_color)+
+  geom_jitter(size = 2.5, alpha = 0.5)+
+  theme_classic()+labs(x = "Treatment", y = "Species richness")+
+  facet_grid(.~Shelf_Life_Stage)+
+  theme(axis.text.x = element_text(angle = 45))
+
+# Diversity in cider
+boxplot_cd <- obs_rich %>%
+  dplyr::filter(Beverage == "Cider") %>%
+  ggplot(aes(x = Thermal, y = qD, color = Thermal))+
+  geom_boxplot(aes(fill = Thermal), alpha = 0.5)+
+  scale_fill_manual(values = Thermal_color)+
+  scale_color_manual(values = Thermal_color)+
+  geom_jitter(size = 2.5, alpha = 0.5)+
+  theme_classic()+labs(x = "Treatment", y = "Species richness")+
+  facet_grid(.~Shelf_Life_Stage)+
+  theme(axis.text.x = element_text(angle = 45))
+
+# This boxplot shows that species richness is not significantly affected at the 
+# end of shelf-life for thermally and non-thermally treated ciders.
+obs_rich %>%
+  dplyr::filter(Beverage == "Cider") %>%
+  ggplot(aes(x = Shelf_Life_Stage, y = qD, color = Shelf_Life_Stage))+
+  geom_boxplot(aes(fill = Shelf_Life_Stage), alpha = 0.5)+
+  scale_fill_manual(values = Stage_color)+
+  scale_color_manual(values = Stage_color)+
+  geom_jitter(size = 2.5, alpha = 0.5)+
+  theme_classic()+labs(x = "Stage of Shelf-life", y = "Species richness")+
+  facet_grid(.~Thermal)+ stat_kruskal_test()+
+  theme(axis.text.x = element_text(angle = 45))
+# This boxplot shows that species richness is not significantly affected at the 
+# end of shelf-life for untreated and treated orange juices...
+obs_rich %>%
+  dplyr::filter(Beverage == "Orange Juice") %>%
+  ggplot(aes(x = Shelf_Life_Stage, y = qD, color = Shelf_Life_Stage))+
+  geom_boxplot(aes(fill = Shelf_Life_Stage), alpha = 0.5)+
+  scale_fill_manual(values = Stage_color)+
+  scale_color_manual(values = Stage_color)+
+  geom_jitter(size = 2.5, alpha = 0.5)+
+  theme_classic()+labs(x = "Stage of Shelf-life", y = "Species richness")+
+  facet_grid(.~Thermal)+ stat_kruskal_test()+
+  theme(axis.text.x = element_text(angle = 45))
+```
+
+### Shannon diversity
+```{r}
+div_iNEXT %>% filter(Diversity == "Shannon diversity") %>% View()
+
+```
+
+### Simpson diversity
+```{r}
+div_iNEXT %>% filter(Diversity == "Simpson diversity")
+
+```
+##### Session information
+```{r}
+devtools::session_info()
+```
