@@ -15,21 +15,96 @@ library(ggpubr)
 
 ```
 
-### Set up color preferences
-<https://coolors.co/>
+### Set up color & shape preferences - Metadata variables
+Useful palette generator <https://coolors.co/>
+Make sure it is friendly to color blind readers.
+<https://www.datylon.com/blog/data-visualization-for-colorblind-readers#:~:text=The%20first%20rule%20of%20making,out%20of%20these%20two%20hues.>
+Example of how to use color and shape preferences in ggplot
+`ggplot(data = final_physeq@sam_data, aes(x = malic, y = fructose))+geom_point(aes(color = Trial, shape = Trial))+scale_color_manual(values = Trial_color)+scale_shape_manual(values = Trial_shape)`
 ```{r}
-
 # Specify colors
-Trial_color <- c("black","green","red")
+Trial_color <- c("#fcd0a1","#b1b695","#A690A4")
 # Specify which trial each color is for
-names(trial_color) <- c(1,2,3)
+names(Trial_color) <- c(1,2,3)
 
-# Example of how to use color preferences in ggplot
-#ggplot(data = final_physeq@sam_data, aes(x = malic, y = fructose))+geom_point(aes(color = Trial))+scale_color_manual(values = trial_color)
+Trial_shape <- c(15,16,17)
+names(Trial_shape) <- c(1,2,3)
 
-Beverage_color <- c("orange","red")
+Beverage_color <- c("#FFC759","#FF7B9C")
 names(Beverage_color) <- c("Orange Juice","Cider")
 
-Treatment_color
+Beverage_shape <- c(18,19)
+names(Beverage_shape) <- c("Orange Juice","Cider")
+
+Treatment_color <- c("#332288", "#882255", "#AA4499", "#CC6677", "#DDCC77", 
+                     "#44AA99", "#117733")
+names(Treatment_color) <- c("No Treatment", "Pasteurization", 
+                           "Pasteurization + SB + PS","Pasteurization + DMDC + NG",
+                           "UV","HPP","HPP + DMDC + NG")
+Stage_color <- c("#7CA1CC", "#3D65A5", "#1F449C")
+names(Stage_color) <- c("Beginning", "Day14", "End")
+
+Stage_shape <- c(15,16,17)
+names(Stage_shape) <- c("Beginning", "Day14", "End")
+
+Spoiled_color <- c("#E08E45", "#6B2737")
+names(Spoiled_color) <- c("Not spoiled", "Spoiled")
 
 ```
+### Set up color & shape preferences - Taxanomical ranks
+```{r}
+
+
+```
+
+### Biodiversity Analysis
+```{r}
+# Create ASV data frame as an input for iNEXT
+iNEXT_input <- as.data.frame(final_physeq@otu_table)
+
+# For reproducibility
+set.seed(777)
+
+# Calculate Hill numbers
+#q = 0 means total number of taxa
+#q = 1 means Number of common taxa (equivalent to exp(Shanon))
+#q = 2 means Number of dominant taxa
+
+#iNEXT_output <- iNEXT(iNEXT_input, q = c(0,1,2), datatype = "abundance")
+
+# Creating a data frame containing diversity measures from iNEXT output
+# plus metadata
+metadata <- final_physeq@sam_data %>% data.frame() %>%
+  rownames_to_column(var = "Assemblage")
+div_iNEXT <- iNEXT_output$AsyEst %>%
+  left_join(., metadata, by = "Assemblage") %>% 
+  # Change diversity measures to factor for plotting
+  mutate(Diversity = as.factor(Diversity))
+```
+
+#### Species richness over shelf-life
+```{r}
+RichnessPlot1 <- div_iNEXT %>% filter(Diversity == "Species richness") %>%
+  ggplot(aes(x = Shelf_Life_Stage, y = Observed))+
+  geom_point(aes(shape = Beverage, color = Treatment), size = 2, alpha = 0.75)+
+  scale_shape_manual(values = Beverage_shape)+
+  scale_color_manual(values = Treatment_color)+
+  theme_classic() + labs(x = "Stage in Shelf-life", y = "Species Richness")+
+  theme(axis.text = element_text(size = 12),
+        axis.title = element_text(size = 14),
+        legend.text = element_text(size = 12))
+
+RichnessPlot2 <- div_iNEXT %>% filter(Diversity == "Species richness") %>%
+  ggplot(aes(x = Day, y = Observed))+
+  geom_point(aes(shape = Beverage, color = Treatment), size = 2, alpha = 0.75)+
+  scale_shape_manual(values = Beverage_shape)+
+  scale_color_manual(values = Treatment_color)+
+  theme_classic() + labs(x = "Time (Days)", y = "Species Richness")+
+  theme(axis.text = element_text(size = 12),
+        axis.title = element_text(size = 14),
+        legend.text = element_text(size = 12))
+
+```
+
+#### Rarefaction curve
+
