@@ -73,7 +73,10 @@ set.seed(777)
 #q = 2 means Number of dominant taxa (inverse Simpson)
 
 #iNEXT_output <- iNEXT(iNEXT_input, q = c(0,1,2), datatype = "abundance")
+```
 
+#### Export iNEXT output as a dataframe suitable for plotting 
+```{r}
 # Creating a data frame containing diversity measures from iNEXT output
 # plus metadata
 metadata <- final_physeq@sam_data %>% data.frame() %>%
@@ -202,7 +205,7 @@ obs_rich %>%
 
 ### Shannon index for species evenness
 ```{r}
-div_iNEXT %>% 
+oj_shannon <- div_iNEXT %>% 
   filter(Diversity == "Shannon diversity", Beverage == "Orange Juice") %>% 
   ggplot(aes(x = Shelf_Life_Stage, y = Observed, fill = Thermal))+
   geom_violin(alpha = 0.75) + 
@@ -211,21 +214,42 @@ div_iNEXT %>%
   theme_classic()+labs(x = "Stage of Shelf-life", y = "Shannon diversity")+
   theme(legend.position = "bottom")
 
-div_iNEXT %>% 
+cd_shannon <- div_iNEXT %>% 
   filter(Diversity == "Shannon diversity", Beverage == "Cider") %>% 
   ggplot(aes(x = Shelf_Life_Stage, y = Observed, fill = Thermal))+
   geom_violin(alpha = 0.75) + 
   geom_dotplot(binaxis='y', stackdir = "center",position=position_dodge(0.9))+
   scale_fill_manual(values = Thermal_color)+
   theme_classic()+labs(x = "Stage of Shelf-life", y = "Shannon diversity")+
-  theme(legend.position = "bottom", axis.text = element_text(size = 14))
+  theme(legend.position = "bottom")
 ```
 
 ### Simpson diversity measuring the abundant/dominant taxa
 ```{r}
-div_iNEXT %>% filter(Diversity == "Simpson diversity") %>% 
-  
+ oj_simpson <- div_iNEXT %>% 
+  filter(Diversity == "Simpson diversity", Beverage == "Orange Juice") %>% 
+  ggplot(aes(x = Shelf_Life_Stage, y = Observed, fill = Thermal))+
+  geom_violin(alpha = 0.75) + 
+  geom_dotplot(binaxis='y', stackdir = "center",position=position_dodge(0.9))+
+  scale_fill_manual(values = Thermal_color)+
+  theme_classic()+labs(x = "Stage of Shelf-life", y = "Simpson diversity")+
+  theme(legend.position = "bottom")
 
+cd_simpson <- div_iNEXT %>% 
+  filter(Diversity == "Simpson diversity", Beverage == "Cider") %>% 
+  ggplot(aes(x = Shelf_Life_Stage, y = Observed, fill = Thermal))+
+  geom_violin(alpha = 0.75) + 
+  geom_dotplot(binaxis='y', stackdir = "center",position=position_dodge(0.9))+
+  scale_fill_manual(values = Thermal_color)+
+  theme_classic()+labs(x = "Stage of Shelf-life", y = "Simpson diversity")+
+  theme(legend.position = "bottom")
+
+```
+### Combining Shannon and Simpson Diversity Plots
+```{r}
+ggpubr::ggarrange(oj_shannon, oj_simpson, cd_shannon, cd_simpson, 
+                  ncol = 2, nrow = 2, common.legend = TRUE, 
+                  labels = c("A", "B", "C", "D"))
 ```
 ##### Session information
 ```{r}
