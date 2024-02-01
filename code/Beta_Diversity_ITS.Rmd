@@ -15,6 +15,7 @@ library(ggpubr)
 library(vegan)
 library(microbiome)
 library(tempted)
+library(ggforce)
 ```
 
 ### Set up color & shape preferences - Metadata variables
@@ -114,7 +115,7 @@ The goal of TEMPTED is to perform dimensionality reduction for multivariate long
 
 # A data.frame with rows representing samples and matching with data.frame count table and processed table
 ## Create a unique ID for each (juice, treatment) combination
-ID_df <- metatable %>% expand(Beverage, Treatment, Trial) %>% 
+ID_df <- metadata %>% expand(Beverage, Treatment, Trial) %>% 
   mutate(JuiceID = seq(from = 1, to = nrow(.)))
 
 metatable <- metadata %>% 
@@ -124,6 +125,8 @@ metatable <- metadata %>%
   left_join(., y = ID_df,) %>%
   # Change row names to sample names
   column_to_rownames(var = "Assemblage")
+
+
 
 # A data.frame with rows representing samples and matching with data.frame metatable and columns representing microbial features (i.e. OTUs). Each entry is a read count.
 
@@ -177,7 +180,10 @@ A_data %>% ggplot(aes(x = A_data$PC1, y = A_data$PC2, color = Trial))+
                                      y = "Component 2",
                                      title = "Subject loadings")+
   scale_color_manual(values = Trial_color)+
-  scale_shape_manual(values = Beverage_shape) + theme_classic()
+  scale_shape_manual(values = Beverage_shape) + 
+  geom_mark_ellipse(aes(fill = Trial), expand = unit(1, "mm"))+
+  scale_fill_manual(values = Trial_color)+
+  theme_classic()
 ```
 
 Clearly, the beta diversity is driven by Trial, i.e. the source of the juice.
@@ -202,7 +208,10 @@ A_data %>%
                                      y = "Component 2",
                                      title = "Subject loadings")+
   scale_color_manual(values = Thermal_color)+
-  scale_shape_manual(values = Beverage_shape) + theme_classic()
+  scale_shape_manual(values = Beverage_shape) + 
+  geom_mark_ellipse(aes(fill = Thermal), expand = unit(2, "mm"))+
+  scale_fill_manual(values = Thermal_color)+
+  theme_classic()
 
 ```
 #### Temporal loadings
