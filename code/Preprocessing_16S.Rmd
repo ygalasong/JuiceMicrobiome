@@ -1,0 +1,566 @@
+---
+title: "Preprocessing_16S_subset"
+author: "Yupawadee Galasong"
+date: "`r Sys.Date()`"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+# Load packages
+```{r}
+pacman::p_load(dada2, tidyverse, phyloseq, patchwork,Biostrings, install = FALSE)
+```
+# Install an additional package for cutadapt
+
+```{r}
+pacman::p_load(devtools, DelayedArray, GenomeInfoDb, ShortRead, install = FALSE)
+install_github("omicsCore/SEQprocess")
+library("SEQprocess") # Loads the package
+#library(help="SEQprocess") # Lists package info
+```
+
+# Set up file path
+```{r}
+path <- "./Data_16S"
+```
+
+# Renaming files
+This part will be skipped for now. We only want to see the overall read quality,
+sequencing output, and whether the Nakano primers yield lower mitochondria & chloroplast reads
+compared to the universal 16S primers.
+
+# Create variables for the forward and reverse reads
+```{r}
+#Forward read variables
+forward_reads <- list.files(path, pattern = "R1", full.names = TRUE)
+
+#Reverse read variables 
+reverse_reads <- list.files(path, pattern = "R2", full.names = TRUE)
+```
+
+# Create a list of sample names
+In Terminal, use ls command to list the file names and pipe the output to a new
+txt file called "samples_16S.txt".
+```{r list sample names}
+#Remove _R[1,2].fastq.gz extension to obtain true sample names
+samples <- list()
+filenames <- scan("./Data_16S/samples_16S.txt",character())
+for(name in filenames){
+  sample <- gsub("_R[0-9].fastq.gz",'',name)
+  if(!sample %in% samples){
+  samples <- append(samples,sample)
+  }
+}
+#IMPORTANT: sort the 'samples' vector alphabetically so it matches with how R list the files in the path
+samples <- sort(unlist(samples))
+```
+
+#Create varibales for filtered forward and reverse reads
+```{r}
+filtered_forward_reads <- file.path(path, "filtered", paste0(samples,"_R1_filtered.fastq.gz"))
+
+filtered_reverse_reads <- file.path(path, "filtered", paste0(samples,"_R2_filtered.fastq.gz"))
+```
+
+
+#Assess Raw Read Quality
+Many samples from Trial 1 have low quality sequencing data.
+The average number of reads per sample is 87,000 reads.
+```{r Assess Raw Read Quality, eval=FALSE, include=FALSE}
+#Display quality plot for forward read samples
+forwardQualPlot <- plotQualityProfile(forward_reads[1:10])
+forwardQualPlot
+
+#Display quality plot for  reverse read samples
+reverseQualPlot <- plotQualityProfile(reverse_reads[11:22])
+reverseQualPlot
+
+```
+
+#primers and adapters from raw reads
+```{r primers info}
+fwd_primer <- "CADACTCCTACGGGAGGC"
+rev_primer <- "ATCCTGTTTGMTMCCCVCRC"
+rev_rc <- toString(reverseComplement(DNAString(rev_primer)))
+fwd_rc <- toString(reverseComplement(DNAString(fwd_primer)))
+
+```
+#Some additional steps before primer removal
+Following this tutorial: https://benjjneb.github.io/dada2/ITS_workflow.html
+
+```{r primer orientation}
+allOrients <- function(primer) {
+    # Create all orientations of the input sequence
+    require(Biostrings)
+    dna <- DNAString(primer)  # The Biostrings works w/ DNAString objects rather than character vectors
+    orients <- c(Forward = dna, Complement = complement(dna), Reverse = reverse(dna), 
+        RevComp = reverseComplement(dna))
+    return(sapply(orients, toString))  # Convert back to character vector
+}
+FWD.orients <- allOrients(fwd_primer)
+REV.orients <- allOrients(rev_primer)
+FWD.orients
+```
+
+#Pre-filtering N's from raw reads & Count primers
+```{r filter Ns from raw seqs}
+forward_reads.filtN <- file.path(path, "filtN", basename(forward_reads)) # Put N-filterd files in filtN/ subdirectory
+reverse_reads.filtN <- file.path(path, "filtN", basename(reverse_reads))
+filterAndTrim(forward_reads, forward_reads.filtN, reverse_reads, reverse_reads.filtN, maxN = 0, multithread = TRUE)
+primerHits <- function(primer, fn) {
+    # Counts number of reads in which the primer is found
+    nhits <- vcountPattern(primer, sread(readFastq(fn)), fixed = FALSE)
+    return(sum(nhits > 0))
+}
+rbind(FWD.ForwardReads = sapply(FWD.orients, primerHits, fn = forward_reads.filtN[[1]]), 
+    FWD.ReverseReads = sapply(FWD.orients, primerHits, fn = reverse_reads.filtN[[1]]), 
+    REV.ForwardReads = sapply(REV.orients, primerHits, fn = forward_reads.filtN[[1]]), 
+    REV.ReverseReads = sapply(REV.orients, primerHits, fn = reverse_reads.filtN[[1]]))
+```
+
+#Cutadapt
+```{r cutadapt}
+cutadapt <- "/home/yg225/cutadapt-venv/bin/cutadapt"
+path.cut <- file.path(path, "cutadapt")
+if(!dir.exists(path.cut)) dir.create(path.cut)
+forward_reads.cut <- file.path(path.cut, basename(forward_reads))
+reverse_reads.cut <- file.path(path.cut, basename(reverse_reads))
+R1.flags <- paste("-g", fwd_primer, "-a", rev_rc)
+R2.flags <- paste("-G", rev_primer, "-A", fwd_rc)
+# Run Cutadapt
+for(i in seq_along(forward_reads)) {
+  system2(cutadapt,args = c(R1.flags, R2.flags, "-n", 2, "-m", 1,
+  # -n 2 required to remove FWD and REV from reads
+  # -m 1 required to prevent error in PlotQualityProfile post cutadapt
+  "-o", forward_reads.cut[i], "-p", reverse_reads.cut[i], # output files
+  forward_reads.filtN[i], reverse_reads.filtN[i], "--discard-untrimmed",
+  "--report=minimal"))
+}
+
+```
+
+```{r post-cutadapt check}
+rbind(FWD.ForwardReads = sapply(FWD.orients, primerHits, fn = forward_reads.cut[[1]]), 
+    FWD.ReverseReads = sapply(FWD.orients, primerHits, fn = reverse_reads.cut[[1]]), 
+    REV.ForwardReads = sapply(REV.orients, primerHits, fn = forward_reads.cut[[1]]), 
+    REV.ReverseReads = sapply(REV.orients, primerHits, fn = reverse_reads.cut[[1]]))
+
+```
+
+```{r Assess Raw Read Quality, eval=FALSE, include=FALSE}
+#Display quality plot for forward read samples
+forwardQualPlot_cut <- plotQualityProfile(forward_reads.cut[1:10])
+#Display quality plot for  reverse read samples
+reverseQualPlot_cut <- plotQualityProfile(reverse_reads.cut[1:10])
+```
+The primer-free sequence files are now ready to be analyzed through the DADA2 pipeline!
+
+#Filter and Trim Reads
+```{r Filter and Trim}
+filtered_out <- filterAndTrim(forward_reads.cut, filtered_forward_reads,
+                              reverse_reads.cut, filtered_reverse_reads,
+                              #truncLen = c(232,230),
+                              maxN = 0, maxEE = c(2,2),
+                              truncQ = 2,
+                              rm.phix = TRUE,
+                              compress = TRUE,
+                              multithread = TRUE)
+filtered_out
+#Plot the quality plot of trimmed reads
+#forwardQualPlot_filt <- plotQualityProfile(filtered_forward_reads[1:10])
+#reverseQualPlot_filt <- plotQualityProfile(filtered_reverse_reads[1:10])
+
+#Optional: Putting all quality plots into 1 gigantic plot
+#(forwardQualPlot + reverseQualPlot) / (forwardQualPlot_filt + reverseQualPlot_filt)
+
+```
+
+#Generate an Error Model
+```{r learn-errors}
+#Learn errors
+err_forward_reads <- learnErrors(filtered_forward_reads, multithread = TRUE)
+err_reverse_reads <- learnErrors(filtered_reverse_reads, multithread = TRUE)
+
+#Plot the errors
+error_model_fwd <- plotErrors(err_forward_reads, nominalQ = TRUE)
+error_model_rev <- plotErrors(err_reverse_reads, nominalQ = TRUE)
+```
+
+# Inferring ASVs on the forward and reverse sequences
+```{r denoising}
+# Run DADA2 on forward sequences
+dada_forward <- dada(filtered_forward_reads, err = err_forward_reads, multithread = TRUE)
+head(dada_forward)
+
+# Run DADA2 on reverse sequences
+dada_reverse <- dada(filtered_reverse_reads, err = err_reverse_reads, multithread = TRUE)
+head(dada_reverse)
+
+```
+# Merge the forward and reverse ASVs
+```{r Merge}
+# Merge forward ASVs and reverse ASVs
+merged_amplicons <- mergePairs(dadaF = dada_forward, 
+                               derepF = filtered_forward_reads, 
+                               dadaR = dada_reverse, 
+                               derepR = filtered_reverse_reads,
+                               verbose = TRUE)
+#Inspect the output
+head(merged_amplicons)
+```
+#Generate a count table
+```{r seqtab}
+seqtab <- makeSequenceTable(merged_amplicons)
+class(seqtab)
+typeof(seqtab)
+dim(seqtab)
+
+#Inspect the distribution of sequence lengths of all ASVs in the data set
+table(nchar(getSequences(seqtab)))
+save(seqtab, file = "./Data_16S/seqtab_big.RData")
+
+```
+
+# Repeat the ASV inference for the subset of 16S samples sent to sequencing with the ITS samples
+
+# Set up file path
+```{r}
+path2 <- "./Data_16S/subset"
+```
+
+# Create variables for the forward and reverse reads
+```{r}
+#Forward read variables
+forward_reads2 <- list.files(path2, pattern = "R1", full.names = TRUE)
+
+#Reverse read variables 
+reverse_reads2 <- list.files(path2, pattern = "R2", full.names = TRUE)
+```
+
+# Create a list of sample names
+In Terminal, use ls command to list the file names and pipe the output to a new
+txt file called "samples_16S_subset.txt".
+```{r list sample names}
+#Remove _R[1,2].fastq.gz extension to obtain true sample names
+samples2 <- list()
+filenames2 <- scan("./Data_16S/subset/samples_16S_subset.txt",character())
+for(name in filenames2){
+  sample <- gsub("_R[0-9].fastq.gz",'',name)
+  if(!sample %in% samples2){
+  samples2 <- append(samples2,sample)
+  }
+}
+#IMPORTANT: sort the 'samples' vector alphabetically so it matches with how R list the files in the path
+samples2 <- sort(unlist(samples2))
+```
+
+#Create varibales for filtered forward and reverse reads
+```{r}
+filtered_forward_reads2 <- file.path(path2, "filtered", paste0(samples2,"_R1_filtered.fastq.gz"))
+
+filtered_reverse_reads2 <- file.path(path2, "filtered", paste0(samples2,"_R2_filtered.fastq.gz"))
+```
+
+#Assess Raw Read Quality
+
+```{r Assess Raw Read Quality, eval=FALSE, include=FALSE}
+#Display quality plot for forward read samples
+forwardQualPlot <- plotQualityProfile(forward_reads2[1:5])
+forwardQualPlot
+
+#Display quality plot for  reverse read samples
+reverseQualPlot <- plotQualityProfile(reverse_reads2[1:5])
+reverseQualPlot
+
+```
+
+#primers and adapters from raw reads
+```{r primers info, eval=FALSE, include=FALSE}
+fwd_primer <- "CADACTCCTACGGGAGGC"
+rev_primer <- "ATCCTGTTTGMTMCCCVCRC"
+rev_rc <- toString(reverseComplement(DNAString(rev_primer)))
+fwd_rc <- toString(reverseComplement(DNAString(fwd_primer)))
+
+```
+#Some additional steps before primer removal
+Following this tutorial: https://benjjneb.github.io/dada2/ITS_workflow.html
+
+```{r primer orientation, eval=FALSE, include=FALSE}
+allOrients <- function(primer) {
+    # Create all orientations of the input sequence
+    require(Biostrings)
+    dna <- DNAString(primer)  # The Biostrings works w/ DNAString objects rather than character vectors
+    orients <- c(Forward = dna, Complement = complement(dna), Reverse = reverse(dna), 
+        RevComp = reverseComplement(dna))
+    return(sapply(orients, toString))  # Convert back to character vector
+}
+FWD.orients <- allOrients(fwd_primer)
+REV.orients <- allOrients(rev_primer)
+FWD.orients
+```
+
+#Pre-filtering N's from raw reads & Count primers
+```{r filter Ns from raw seqs}
+forward_reads2.filtN <- file.path(path2, "filtN", basename(forward_reads2)) # Put N-filterd files in filtN/ subdirectory
+reverse_reads2.filtN <- file.path(path2, "filtN", basename(reverse_reads2))
+filterAndTrim(forward_reads2, forward_reads2.filtN, reverse_reads2, reverse_reads2.filtN, maxN = 0, multithread = TRUE)
+primerHits <- function(primer, fn) {
+    # Counts number of reads in which the primer is found
+    nhits <- vcountPattern(primer, sread(readFastq(fn)), fixed = FALSE)
+    return(sum(nhits > 0))
+}
+rbind(FWD.ForwardReads = sapply(FWD.orients, primerHits, fn = forward_reads2.filtN[[1]]), 
+    FWD.ReverseReads = sapply(FWD.orients, primerHits, fn = reverse_reads2.filtN[[1]]), 
+    REV.ForwardReads = sapply(REV.orients, primerHits, fn = forward_reads2.filtN[[1]]), 
+    REV.ReverseReads = sapply(REV.orients, primerHits, fn = reverse_reads2.filtN[[1]]))
+```
+
+#Cutadapt
+```{r cutadapt}
+cutadapt <- "/home/yg225/cutadapt-venv/bin/cutadapt"
+path2.cut <- file.path(path2, "cutadapt")
+if(!dir.exists(path2.cut)) dir.create(path2.cut)
+forward_reads2.cut <- file.path(path2.cut, basename(forward_reads2))
+reverse_reads2.cut <- file.path(path2.cut, basename(reverse_reads2))
+R1.flags <- paste("-g", fwd_primer, "-a", rev_rc)
+R2.flags <- paste("-G", rev_primer, "-A", fwd_rc)
+# Run Cutadapt
+for(i in seq_along(forward_reads2)) {
+  system2(cutadapt,args = c(R1.flags, R2.flags, "-n", 2, "-m", 1,
+  # -n 2 required to remove FWD and REV from reads
+  # -m 1 required to prevent error in PlotQualityProfile post cutadapt
+  "-o", forward_reads2.cut[i], "-p", reverse_reads2.cut[i], # output files
+  forward_reads2.filtN[i], reverse_reads2.filtN[i], "--discard-untrimmed",
+  "--report=minimal"))
+}
+
+```
+
+```{r post-cutadapt check}
+rbind(FWD.ForwardReads = sapply(FWD.orients, primerHits, fn = forward_reads2.cut[[1]]), 
+    FWD.ReverseReads = sapply(FWD.orients, primerHits, fn = reverse_reads2.cut[[1]]), 
+    REV.ForwardReads = sapply(REV.orients, primerHits, fn = forward_reads2.cut[[1]]), 
+    REV.ReverseReads = sapply(REV.orients, primerHits, fn = reverse_reads2.cut[[1]]))
+
+```
+
+```{r Assess Raw Read Quality, eval=FALSE, include=FALSE}
+#Display quality plot for forward read samples
+forwardQualPlot_cut <- plotQualityProfile(forward_reads2.cut[1:5])
+#Display quality plot for  reverse read samples
+reverseQualPlot_cut <- plotQualityProfile(reverse_reads2.cut[1:5])
+```
+The primer-free sequence files are now ready to be analyzed through the DADA2 pipeline!
+
+#Filter and Trim Reads
+```{r Filter and Trim}
+filtered_out2 <- filterAndTrim(forward_reads2.cut, filtered_forward_reads2,
+                              reverse_reads2.cut, filtered_reverse_reads2,
+                              #truncLen = c(232,230),
+                              maxN = 0, maxEE = c(2,2),
+                              truncQ = 2,
+                              rm.phix = TRUE,
+                              compress = TRUE,
+                              multithread = TRUE)
+
+#Plot the quality plot of trimmed reads
+#forwardQualPlot_filt <- plotQualityProfile(filtered_forward_reads[1:10])
+#reverseQualPlot_filt <- plotQualityProfile(filtered_reverse_reads[1:10])
+
+#Optional: Putting all quality plots into 1 gigantic plot
+#(forwardQualPlot + reverseQualPlot) / (forwardQualPlot_filt + reverseQualPlot_filt)
+
+```
+
+#Generate an Error Model
+```{r learn-errors}
+#Learn errors
+err_forward_reads2 <- learnErrors(filtered_forward_reads2, multithread = TRUE)
+err_reverse_reads2 <- learnErrors(filtered_reverse_reads2, multithread = TRUE)
+
+#Plot the errors
+#error_model_fwd <- plotErrors(err_forward_reads, nominalQ = TRUE)
+#error_model_rev <- plotErrors(err_reverse_reads, nominalQ = TRUE)
+```
+
+# Inferring ASVs on the forward and reverse sequences
+```{r denoising}
+# Run DADA2 on forward sequences
+dada_forward2 <- dada(filtered_forward_reads2, err = err_forward_reads2, multithread = TRUE)
+head(dada_forward2)
+
+# Run DADA2 on reverse sequences
+dada_reverse2 <- dada(filtered_reverse_reads2, err = err_reverse_reads2, multithread = TRUE)
+head(dada_reverse2)
+
+```
+# Merge the forward and reverse ASVs
+```{r Merge}
+# Merge forward ASVs and reverse ASVs
+merged_amplicons2 <- mergePairs(dadaF = dada_forward2, 
+                               derepF = filtered_forward_reads2, 
+                               dadaR = dada_reverse2, 
+                               derepR = filtered_reverse_reads2,
+                               verbose = TRUE)
+#Inspect the output
+head(merged_amplicons2)
+```
+#Generate a count table
+```{r seqtab}
+seqtab2 <- makeSequenceTable(merged_amplicons2)
+class(seqtab2)
+typeof(seqtab2)
+dim(seqtab2)
+
+#Inspect the distribution of sequence lengths of all ASVs in the data set
+table(nchar(getSequences(seqtab2)))
+save(seqtab2, file = "./Data_16S/seqtab_small.RData")
+
+```
+
+# Merge seqtab objects from both sequencing runs
+```{r}
+merged_seqtab <- mergeSequenceTables(seqtab, seqtab2)
+
+# Search & Remove Chimeras (or Bimeras)
+
+seqtab_nochim <- removeBimeraDenovo(merged_seqtab, method="consensus", multithread=TRUE)
+
+# Calculate percentage of chimeras removed
+
+frac_removed <- (1-sum(seqtab_nochim)/sum(merged_seqtab))*100
+paste0("Chimeras represented ", frac_removed, "% of merged reads")
+
+save(seqtab_nochim, file = "./Data_16S/seqtab_nochim.RData")
+```
+
+Chimeras represented `r frac_removed` % of the data
+
+# Assign Taxonomy 
+
+```{r assign-tax}
+SILVA_train_path <- "/workdir/yg225/JuiceMicrobiome/SILVA/silva_nr99_v138.1_train_set.fa.gz"
+
+SILVA_species_path <- "/workdir/yg225/JuiceMicrobiome/SILVA/silva_species_assignment_v138.1.fa.gz"
+
+taxa <- assignTaxonomy(seqtab_nochim, SILVA_train_path, multithread=TRUE)
+
+taxa <- addSpecies(taxa, SILVA_species_path)
+
+# Inspect the taxonomy 
+taxa_print <- taxa 
+# Removing sequence row names for display only
+rownames(taxa_print) <- NULL
+#View(taxa_print)
+```
+# Combine samples that were sequenced twice
+```{r}
+# Sample 16S001
+seqtab_nochim["16S001_10472130_LCNG8_R1_filtered.fastq.gz",] <- seqtab_nochim["16S001_10472130_LCNG8_R1_filtered.fastq.gz",]+
+seqtab_nochim["16S001_10471140_L9NR7_R1_filtered.fastq.gz",]
+
+# Sample 16S002
+seqtab_nochim["16S002_10472130_LCNG8_R1_filtered.fastq.gz",] <- seqtab_nochim["16S002_10472130_LCNG8_R1_filtered.fastq.gz",]+
+seqtab_nochim["16S002_10471140_L9NR7_R1_filtered.fastq.gz",]
+
+# Sample 16S009
+seqtab_nochim["16S009_10472130_LCNG8_R1_filtered.fastq.gz", ] <- seqtab_nochim["16S009_10472130_LCNG8_R1_filtered.fastq.gz", ] + seqtab_nochim["16S009_10471140_L9NR7_R1_filtered.fastq.gz", ] 
+
+```
+
+# Prepare data for export!
+## 1. ASV Table
+```{r}
+# Prep the ASV table
+samples_out <- rownames(seqtab_nochim)
+
+# Extract sample names from the FASTQ file name
+sample_names_reformatted <- gsub("_[[:digit:]]{8}_[[:alnum:]]{5}_R[0-9]_filtered.fastq.gz","",samples_out)
+
+# Replace the names in our seqtab
+rownames(seqtab_nochim) <- sample_names_reformatted
+
+#Intuition check
+stopifnot(rownames(seqtab_nochim) == sample_names_reformatted)
+
+# Remove duplicates 
+seqtab_nochim <- seqtab_nochim[!duplicated(rownames(seqtab_nochim)),]
+
+## Modify the ASV names and then save as a fasta file ##
+# First we give headers more manageable name
+asv_seqs <- colnames(seqtab_nochim)
+
+# Make headers for our ASV seq fasta file, which will be our asv names 
+asv_headers <- vector(dim(seqtab_nochim)[2], mode = "character")
+for(i in seq(dim(seqtab_nochim)[2])){
+  asv_headers[i] <- paste(">ASV",i,sep = "_")
+}
+asv_tab <- t(seqtab_nochim)
+row.names(asv_tab) <- sub(">","", asv_headers)
+write.table(asv_tab, "Data_16S/ASV_counts.tsv", sep = "\t", quote = FALSE, col.names = NA)
+
+# Write out the fasta file for reference later on for what seq matchs what ASV
+asv_fasta <- c(rbind(asv_headers, asv_seqs))
+write(asv_fasta, "Data_16S/ASVs.fasta")
+```
+
+## 2. Taxonomy table
+```{r prepare taxonomy table}
+## Prepare tax-table
+# Add the ASV sequences from the row names to a column
+new_tax_tab <- taxa %>% as.data.frame() %>% rownames_to_column(var = "ASVseqs")
+head(new_tax_tab)
+
+#Intuition check
+stopifnot(new_tax_tab$ASVseqs == colnames(seqtab_nochim))
+
+# Add ASV names
+rownames(new_tax_tab) <- rownames(asv_tab)
+
+# Add new column with ASV names
+asv_tax <-new_tax_tab %>% mutate(ASV = rownames(asv_tab)) %>% 
+  dplyr::select(Kingdom, Phylum, Class, Order, Family, Genus, Species, ASV, ASVseqs)
+
+#View(asv_tax)
+
+stopifnot(asv_tax$ASV == rownames(asv_tax), rownames(asv_tax) == rownames(asv_tab))
+
+write.table(asv_tax, "Data_16S/ASV_taxonomy.tsv", sep = "\t", quote = FALSE, col.names = NA)
+
+```
+## 3. Metadata
+```{r metadata}
+library(readr)
+metadata <- read_csv("metadata_16S.csv", 
+     col_types = cols(Beverage = col_factor(levels = c("Orange Juice", 
+         "Cider")), Treatment = col_factor(levels = c("No Treatment", 
+         "Pasteurization", "Pasteurization + SB + PS", 
+         "Pasteurization + DMDC + NG", "HPP", 
+         "HPP + DMDC + NG", "UV")), Trial = col_factor(levels = c("1", 
+         "2", "3")), Sample_or_Control = col_factor(levels = c("True Sample", 
+         "Control Sample")), Shelf_Life_Stage = col_factor(levels = c("Beginning", 
+         "Day14", "End")), Spoilage = col_factor(levels = c("Spoiled", 
+         "Not spoiled")), citric = col_double(), 
+         tartaric = col_double(), lactic = col_double(), 
+         acetic = col_double(), EtOH = col_double()))
+# Check if sample names match
+stopifnot(sort(metadata$ID)==sort(colnames(asv_tab)))
+```
+
+# Create Phyloseq Object
+```{r phyloseq-handoff}
+raw_physeq <- phyloseq(
+  # ASV table
+  otu_table(asv_tab, taxa_are_rows = TRUE),
+  # Metadata
+  sample_data(column_to_rownames(metadata, var = "ID")),
+  # Taxonomy table
+  tax_table(as.matrix(asv_tax))
+)
+
+raw_physeq
+# Save the phyloseq object for downstream analysis
+save(raw_physeq, file = paste0("Data_16S/raw_physeq.RData"))
+
+```
+We will continue in Part 2!

@@ -1,0 +1,113 @@
+ID,Beverage,Treatment,Day,SPC,APDA,Trial ,Sample_or_Control,Shelf_Life_Stage,Spoilage,citric,tartaric,malic,lactic,acetic,glucose,fructose,EtOH,Brix,pH
+16S001,Orange Juice,No Treatment,0,3.477121255,3.991226076,1,True Sample,Beginning,Not spoiled,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA
+16S002,Orange Juice,Pasteurization,0,0,0,1,True Sample,Beginning,Not spoiled,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA
+16S003,Orange Juice,Pasteurization + SB + PS,0,0,0,1,True Sample,Beginning,Not spoiled,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA
+16S004,Orange Juice,Pasteurization + DMDC + NG,0,0,0,1,True Sample,Beginning,Not spoiled,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA
+16S005,Orange Juice,UV,0,2.305351369,3.086715664,1,True Sample,Beginning,Not spoiled,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA
+16S006,Orange Juice,HPP,0,0.602059991,0,1,True Sample,Beginning,Not spoiled,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA
+16S007,Orange Juice,HPP + DMDC + NG,0,0,0,1,True Sample,Beginning,Not spoiled,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA
+16S009,Cider,Pasteurization,0,0.301029996,0,1,True Sample,Beginning,Not spoiled,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA
+16S010,Cider,Pasteurization + SB + PS,0,1.146128036,0,1,True Sample,Beginning,Not spoiled,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA
+16S011,Cider,Pasteurization + DMDC + NG,0,0.698970004,0,1,True Sample,Beginning,Not spoiled,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA
+16S012,Cider,UV,0,2.08278537,2.045322979,1,True Sample,Beginning,Not spoiled,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA
+16S013,Cider,HPP,0,1.301029996,0,1,True Sample,Beginning,Not spoiled,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA
+16S015,Orange Juice,No Treatment,14,6.838849091,7.064457989,1,True Sample,End,Spoiled,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA
+16S017,Orange Juice,Pasteurization + SB + PS,14,0,0,1,True Sample,Day14,Not spoiled,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA
+16S018,Orange Juice,Pasteurization + DMDC + NG,14,0,0,1,True Sample,Day14,Not spoiled,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA
+16S019,Orange Juice,HPP,14,0,0,1,True Sample,Day14,Not spoiled,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA
+16S020,Orange Juice,HPP + DMDC + NG,14,0,0,1,True Sample,Day14,Not spoiled,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA
+16S021,Cider,No Treatment,14,6.403120521,7.419129308,1,True Sample,End,Spoiled,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA
+16S022,Cider,HPP,14,3.252853031,0,1,True Sample,Day14,Not spoiled,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA
+16S023,Cider,HPP + DMDC + NG,14,0.301029996,0,1,True Sample,Day14,Not spoiled,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA
+16S024,Cider,Pasteurization,14,0.301029996,0,1,True Sample,Day14,Not spoiled,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA
+16S025,Cider,Pasteurization + SB + PS,14,0.477121255,0,1,True Sample,Day14,Not spoiled,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA
+16S026,Cider,Pasteurization + DMDC + NG,14,0.77815125,0,1,True Sample,Day14,Not spoiled,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA
+16S027,Cider,UV,14,2.198657087,2.161368002,1,True Sample,End,Not spoiled,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA
+16S028,Orange Juice,UV,14,5.252853031,5.45484486,1,True Sample,End,Spoiled,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA
+16S029,Orange Juice,Pasteurization,147,0,0,1,True Sample,End,Not spoiled,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA
+16S030,Orange Juice,Pasteurization + SB + PS,147,0.301029996,0,1,True Sample,End,Not spoiled,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA
+16S031,Orange Juice,Pasteurization + DMDC + NG,147,0,0,1,True Sample,End,Not spoiled,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA
+16S033,Orange Juice,HPP,98,5.397940009,6.532754379,1,True Sample,End,Spoiled,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA
+16S034,Orange Juice,HPP + DMDC + NG,126,0,1.322219295,1,True Sample,End,Not spoiled,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA
+16S037,Cider,Pasteurization + DMDC + NG,147,0.84509804,0,1,True Sample,End,Not spoiled,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA
+16S039,Cider,HPP,126,0,0,1,True Sample,End,Not spoiled,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA
+16S040,Cider,HPP + DMDC + NG,126,0,0,1,True Sample,End,Not spoiled,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA
+16S043,Orange Juice,No Treatment,0,5.217483944,5.113943352,2,True Sample,Beginning,Spoiled,5.1,0.4,1.7,nd,0.1,29.5,29.4,0.1,11.3,3.84
+16S044,Orange Juice,Pasteurization,0,1.77815125,0.301029996,2,True Sample,Beginning,Not spoiled,3.5,0.3,1.2,nd,0.1,18.6,18.6,nd,9.7,3.87
+16S045,Orange Juice,Pasteurization + SB + PS,0,2,0.77815125,2,True Sample,Beginning,Not spoiled,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA
+16S046,Orange Juice,Pasteurization + DMDC + NG,0,1.954242509,0,2,True Sample,Beginning,Not spoiled,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA
+16S047,Orange Juice,UV,0,4.004321374,4.250420002,2,True Sample,Beginning,Not spoiled,4.8,0.4,1.6,nd,0.1,25.8,25.9,0.1,10.7,3.84
+16S048,Orange Juice,HPP,0,0,0,2,True Sample,Beginning,Not spoiled,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA
+16S049,Orange Juice,HPP + DMDC + NG,0,0,0,2,True Sample,Beginning,Not spoiled,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA
+16S051,Cider,Pasteurization,0,1.77815125,0.301029996,2,True Sample,Beginning,Not spoiled,0.1,nd,2.9,nd,nd,22.8,52,nd,9.4,3.8
+16S050,Cider,No Treatment,0,3.267171728,2.77815125,2,True Sample,Beginning,Not spoiled,0,nd,2.3,nd,nd,18,40.7,nd,12.9,3.8
+16S053,Cider,Pasteurization + DMDC + NG,0,1.84509804,0,2,True Sample,Beginning,Not spoiled,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA
+16S054,Cider,UV,0,2.225309282,2.447158031,2,True Sample,Beginning,Not spoiled,0.1,nd,2.8,nd,nd,22.4,50.8,nd,9.9,3.8
+16S055,Cider,HPP,0,1.84509804,0,2,True Sample,Beginning,Not spoiled,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA
+16S056,Cider,HPP + DMDC + NG,0,1.954242509,0,2,True Sample,Beginning,Not spoiled,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA
+16S057,Orange Juice,No Treatment,14,6.875061263,6.462397998,2,True Sample,End,Spoiled,8.1,0.7,2.9,nd,0.2,37.7,39.5,0.3,10.2,3.95
+16S058,Orange Juice,Pasteurization,14,2,2.301029996,2,True Sample,Day14,Not spoiled,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA
+16S059,Orange Juice,Pasteurization + SB + PS,14,2,0.301029996,2,True Sample,Day14,Not spoiled,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA
+16S060,Orange Juice,Pasteurization + DMDC + NG,14,2,0,2,True Sample,Day14,Not spoiled,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA
+16S061,Orange Juice,HPP,14,0,0,2,True Sample,Day14,Not spoiled,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA
+16S062,Orange Juice,HPP + DMDC + NG,14,0,0,2,True Sample,Day14,Not spoiled,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA
+16S063,Cider,No Treatment,14,3.361727836,5.320146286,2,True Sample,End,Spoiled,0.1,nd,0.9,nd,nd,4.2,10.8,0.3,2.4,4.06
+16S064,Cider,HPP,14,2,0.301029996,2,True Sample,Day14,Not spoiled,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA
+16S065,Cider,HPP + DMDC + NG,14,2.301029996,0,2,True Sample,Day14,Not spoiled,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA
+16S066,Cider,Pasteurization,14,1.77815125,2.40654018,2,True Sample,Day14,Not spoiled,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA
+16S068,Cider,Pasteurization + DMDC + NG,14,1,0,2,True Sample,Day14,Not spoiled,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA
+16S069,Cider,UV,14,3.361727836,5.320146286,2,True Sample,End,Spoiled,0.1,nd,1.6,0.1,nd,10.3,24.4,0.3,6.5,3.96
+16S070,Orange Juice,UV,14,6.096910013,6.176091259,2,True Sample,End,Spoiled,8.1,0.7,2.7,nd,0.2,42.2,42.8,0.2,11.1,3.87
+16S072,Orange Juice,Pasteurization,56,5.049218023,6.367,2,True Sample,End,Spoiled,5.3,0.4,1.8,nd,0.2,30.8,30.4,0.1,10.3,3.82
+16S073,Orange Juice,Pasteurization + SB + PS,147,3,3,2,True Sample,End,Not spoiled,7.9,0.6,2.5,nd,0.2,46.5,46,0.1,12,3.85
+16S074,Orange Juice,Pasteurization + DMDC + NG,147,0,0,2,True Sample,End,Not spoiled,7.4,0.6,2.3,nd,0.2,43.4,43.2,0.1,10.3,3.81
+16S075,Orange Juice,HPP,126,0,0,2,True Sample,End,Not spoiled,7.8,0.6,2.7,nd,0.2,38.4,40.2,0.2,10.4,3.93
+16S076,Orange Juice,HPP + DMDC + NG,126,0,0,2,True Sample,End,Not spoiled,6.6,0.5,2.3,nd,0.1,32.4,33.9,0.2,10.3,3.92
+16S077,Cider,Pasteurization,147,4.72916479,3.602059991,2,True Sample,End,Not spoiled,0.1,nd,3.1,nd,0.1,22.7,54.6,0.2,8.8,3.88
+16S078,Cider,Pasteurization + SB + PS,147,0.77815125,1.77815125,2,True Sample,End,Not spoiled,0.1,nd,4.1,nd,nd,32.7,73.8,nd,10.8,3.9
+16S079,Cider,Pasteurization + DMDC + NG,147,1.857332496,0,2,True Sample,End,Not spoiled,0,nd,1.8,nd,nd,14.2,32,nd,8.7,3.81
+16S080,Cider,HPP,126,1.806179974,0,2,True Sample,End,Not spoiled,0.1,nd,2.6,nd,nd,20.7,46.8,nd,12.7,3.8
+16S081,Cider,HPP + DMDC + NG,126,0,0,2,True Sample,End,Not spoiled,0,nd,1.5,nd,nd,12.1,27.3,nd,11.2,3.8
+16S083,Orange Juice,No Treatment,0,3.531478917,3.431363764,3,True Sample,Beginning,Not spoiled,9.3,0.5,2.2,nd,0.1,33.1,32.6,0.1,10.1,3.6
+16S084,Orange Juice,Pasteurization,0,0,0,3,True Sample,Beginning,Not spoiled,5.9,0.5,1.6,nd,0.1,31.6,31.1,0.1,11.4,3.73
+16S085,Orange Juice,Pasteurization + SB + PS,0,1.204119983,0,3,True Sample,Beginning,Not spoiled,8.6,0.7,2.4,0.2,0.1,46.5,46.1,0.1,12.8,3.74
+16S086,Orange Juice,Pasteurization + DMDC + NG,0,0.903089987,0,3,True Sample,Beginning,Not spoiled,9.1,0.7,2.4,0.2,0.1,48.9,48.6,0.1,12.6,3.69
+16S087,Orange Juice,UV,0,1.505149978,2.204119983,3,True Sample,Beginning,Not spoiled,8.6,nd,2,nd,0.1,30.3,29.9,0.1,11.2,3.6
+16S088,Orange Juice,HPP,0,1.380211242,0,3,True Sample,Beginning,Not spoiled,6.4,nd,1.5,nd,0.1,22.9,22.6,0.1,10.5,3.62
+16S089,Orange Juice,HPP + DMDC + NG,0,0,0,3,True Sample,Beginning,Not spoiled,6.5,nd,1.5,nd,0.1,22.8,22.5,0.1,10.6,3.61
+16S090,Cider,No Treatment,0,3.785329835,3.698970004,3,True Sample,Beginning,Not spoiled,0.1,0,3.4,nd,nd,18.9,53.3,nd,12,3.49
+16S091,Cider,Pasteurization,0,1.505149978,0,3,True Sample,Beginning,Not spoiled,0.1,0,3.4,nd,nd,22.7,55.2,nd,10.8,3.55
+16S093,Cider,Pasteurization + DMDC + NG,0,0.903089987,0,3,True Sample,Beginning,Not spoiled,0.1,nd,2.7,nd,nd,17.7,42.8,nd,11.1,3.56
+16S094,Cider,UV,0,2.766412847,3.397940009,3,True Sample,Beginning,Not spoiled,0.1,0,3.9,nd,nd,21.7,61.4,nd,11.9,3.48
+16S095,Cider,HPP,0,0.903089987,3.698970004,3,True Sample,Beginning,Not spoiled,0.1,0,3.1,nd,nd,17.2,48.5,nd,10.5,3.48
+16S097,Orange Juice,No Treatment,14,5.369215857,6.170261715,3,True Sample,End,Spoiled,10.9,0.3,2.2,nd,0.1,37.8,39.9,0.1,9.9,3.6
+16S098,Orange Juice,Pasteurization,14,0.301029996,0.954242509,3,True Sample,Day14,Not spoiled,8.6,0.5,2,0.2,0.1,47,49.1,0.1,11.6,3.7
+16S099,Orange Juice,Pasteurization + SB + PS,14,0,0,3,True Sample,Day14,Not spoiled,9.7,0.5,2.3,0.3,0.1,52.5,54.8,0.1,12.8,3.71
+16S100,Orange Juice,Pasteurization + DMDC + NG,14,0.602059991,0,3,True Sample,Day14,Not spoiled,9.2,0.5,2.1,0.3,0.1,50.5,52.2,0.1,12.9,3.68
+16S101,Orange Juice,HPP,14,0.954242509,0,3,True Sample,Day14,Not spoiled,11.7,0.4,2.4,0,0.1,38.9,41.3,0.1,10.6,3.59
+16S102,Orange Juice,HPP + DMDC + NG,14,0.903089987,0,3,True Sample,Day14,Not spoiled,11,0.4,2.4,nd,0.1,39.6,41.7,0.1,10.5,3.6
+16S104,Cider,HPP,14,1.041392685,0,3,True Sample,Day14,Not spoiled,nd,nd,4.2,nd,nd,22.9,66,nd,9.6,3.53
+16S105,Cider,HPP + DMDC + NG,14,0.84509804,0,3,True Sample,Day14,Not spoiled,nd,nd,4.6,0,0,25,71.2,nd,10.4,3.54
+16S106,Cider,Pasteurization,14,1.230448921,0,3,True Sample,Day14,Not spoiled,nd,nd,4.5,nd,0,28.6,71.6,0,10.9,3.62
+16S109,Cider,UV,14,3.633468456,5.093421685,3,True Sample,End,Spoiled,nd,nd,5.3,0,0,27.3,76.6,0.2,11.6,3.53
+16S110,Orange Juice,UV,14,6.097,5.886,3,True Sample,End,Spoiled,10.1,0.3,2,nd,0.1,36,38.2,0.1,11,3.56
+16S111,Orange Juice,Pasteurization,63,5.130333768,5.250420002,3,True Sample,End,Spoiled,8.3,0.4,1.9,0.3,0.1,44,46.5,0.2,11.4,3.67
+16S112,Orange Juice,Pasteurization + SB + PS,147,0.698970004,0,3,True Sample,End,Not spoiled,6.6,0.3,1.5,0.2,0.1,35.7,37.3,0.1,10.3,3.72
+16S113,Orange Juice,Pasteurization + DMDC + NG,147,0.698970004,0,3,True Sample,End,Not spoiled,7.6,0.4,1.7,0.2,0.1,40.3,42.2,0.1,10.7,3.67
+16S114,Orange Juice,HPP,126,1.113943352,0,3,True Sample,End,Not spoiled,11.2,0.4,2.5,0,0.1,40,41.6,0.1,10.6,3.58
+16S115,Orange Juice,HPP + DMDC + NG,126,0.698970004,0,3,True Sample,End,Not spoiled,11.1,0.4,2.4,nd,0.2,39.2,40.8,0.1,10.5,3.58
+16S116,Cider,Pasteurization,147,1.255272505,0,3,True Sample,End,Not spoiled,nd,nd,4,nd,0,25.5,64.8,0,10.8,3.62
+16S117,Cider,Pasteurization + SB + PS,147,1.397940009,0,3,True Sample,End,Not spoiled,nd,nd,3.4,nd,0,22,55.8,0,7.8,3.72
+16S118,Cider,Pasteurization + DMDC + NG,147,1.301029996,0,3,True Sample,End,Not spoiled,nd,nd,4.3,nd,0,27.6,69.7,0,8.9,3.65
+16S119,Cider,HPP,126,0.698970004,0,3,True Sample,End,Not spoiled,nd,nd,4.3,nd,nd,23.4,67.5,nd,9.8,3.53
+16S120,Cider,HPP + DMDC + NG,126,0.903089987,0,3,True Sample,End,Not spoiled,nd,nd,4.6,nd,0,24.8,70.6,0,10.3,3.53
+16SExtNeg1,NA,NA,NA,NA,NA,NA,Control Sample,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA
+16SExtNeg2,NA,NA,NA,NA,NA,NA,Control Sample,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA
+16SExtNeg3,NA,NA,NA,NA,NA,NA,Control Sample,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA
+16SPCRNeg1,NA,NA,NA,NA,NA,NA,Control Sample,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA
+16SPCRNeg2,NA,NA,NA,NA,NA,NA,Control Sample,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA
+16SPCRNeg3,NA,NA,NA,NA,NA,NA,Control Sample,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA
+16SPCRNeg4,NA,NA,NA,NA,NA,NA,Control Sample,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA
+16SMock1,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA
+16SMock2,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA
+16SMock3,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA
