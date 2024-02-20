@@ -1,0 +1,334 @@
+---
+title: "Preprocessing_16S_Part2"
+author: "Yupawadee Galasong"
+date: "`r Sys.Date()`"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+  markdown: 
+    wrap: 72
+---
+
+### Load Packages and Functions
+
+```{r load packages}
+#library(devtools)
+#install_github("microsud/chkMocks")
+pacman::p_load(chkMocks,dplyr,phyloseq, patchwork,tidyverse, DECIPHER, corrr, microbiome, Biostrings, reshape2)
+```
+
+### Load raw phyloseq data from DADA2 workflow
+
+```{r load phyloseq obj}
+
+load(file = "Data_16S/raw_physeq.RData")
+```
+
+### Assessing mock community sequencing results
+
+#### Create a custom mock community database
+
+A few steps are required to create custom mock database 1) look up the
+reference sequences from Zymobiomics 2) combine separate FASTA files
+into one 3) adding complete taxonomic ranks to each entry of the
+combined FASTA file \*pro tip: if using a Zymobiomics mocks, complete
+taxonomic ranks can be found by reading ZymoDb.fasta contained in the
+chkMocks package and copying the taxa names to the combined FASTA file.
+This is possible because they are likely to contain the same kinds of
+bacteria, just in different theoretical composition
+
+```{r eval=FALSE, include=FALSE}
+db <- system.file("extdata", "ZymoDb.fasta", package = "chkMocks", mustWork = TRUE)
+dbseq <- readDNAStringSet(db)
+names(dbseq)
+```
+
+4)  upload the complete FASTA file to project folder
+
+```{r 16S mock}
+# Load the FASTA files created from reference sequences provided bny Zymobiomics 
+# for this mock community
+seqs <- Biostrings::readDNAStringSet(filepath = "ZymoMock.fasta")
+seqs <- DECIPHER::OrientNucleotides(seqs)
+
+# Check first 3 as example
+names(seqs)[1:3]
+
+# Following chkMocks tutorial, we are now adding the dummy seq name before >
+# and adding a 'Root' before Bacteria; Phylum; etc.
+names(seqs) <- paste0("MIB", seq(1:length(names(seqs))), " ", "Root;",names(seqs))
+
+# Check first 3 as example
+names(seqs)[1:3]
+
+# Check for problematic taxonomies. Not required if input FASTA file was formatted correctly.
+groups <- names(seqs)
+groups <- gsub("(.*)(Root;)"," \\2", groups)
+groupCounts <- table(groups)
+u_groups <- names(groupCounts)
+length(u_groups)
+maxGroupSize <- 10 # max sequences per label
+remove <- logical(length(seqs))
+
+```
+
+#### Create a training set
+
+This code was copied from the tutorial
+<https://microsud.github.io/chkMocks/articles/cExampleCustomMocks.html>
+
+```{r}
+maxIterations <- 3
+allowGroupRemoval <- FALSE
+probSeqsPrev <- integer()
+
+for (i in which(groupCounts > maxGroupSize)) {
+  index <- which(groups==u_groups[i])
+  keep <- sample(length(index),
+                 maxGroupSize)
+  remove[index[-keep]] <- TRUE
+}
+sum(remove)
+
+taxid <- NULL
+for (i in seq_len(maxIterations)) {
+  cat("Training iteration: ", i, "\n", sep="")
+  # train the classifier
+  MIBTrainingSet <- LearnTaxa(seqs[!remove],
+                              names(seqs)[!remove],
+                              taxid)
+  # look for problem sequences
+  probSeqs <- MIBTrainingSet$problemSequences$Index 
+  if (length(probSeqs)==0) {
+    cat("No problem sequences remaining.\n")
+    break
+  } else if (length(probSeqs)==length(probSeqsPrev) &&
+             all(probSeqsPrev==probSeqs)) {
+    cat("Iterations converged.\n")
+    break
+  }
+  if (i==maxIterations)
+    break
+  probSeqsPrev <- probSeqs
+  # remove any problem sequences
+  index <- which(!remove)[probSeqs]
+  remove[index] <- TRUE # remove all problem sequences
+  if (!allowGroupRemoval) {
+    # replace any removed groups
+    missing <- !(u_groups %in% groups[!remove])
+    missing <- u_groups[missing]
+    if (length(missing) > 0) {
+      index <- index[groups[index] %in% missing]
+      remove[index] <- FALSE # don't remove
+    }
+  }
+}
+# Check any problems
+sum(remove)
+length(probSeqs)
+
+# Plot training set
+plot(MIBTrainingSet)
+
+# Problem sequences are stored in training set as well.
+MIBTrainingSet$problemSequences
+```
+
+### Create theoretical Phyloseq
+
+#### Get theoretical Composition MIBMocks
+
+To know what data structure the package is expected, it's good to look
+at what they have as an example.
+
+```{r eval=FALSE, include=FALSE}
+mck.otu.th.path <- system.file("extdata", "TheoreticalCompositionMIBMocks.csv",
+                      package="chkMocks", mustWork = TRUE)
+mck.otu <- read.csv(mck.otu.th.path)
+
+# mck.otu contains theoretical composition
+
+# make Species col as rownames
+rownames(mck.otu) <- mck.otu$Species
+
+# Remove first col `Species` and convert it to a matrix
+mck.otu <- mck.otu[,-1] %>% as.matrix() 
+
+head(mck.otu)
+
+# create a dummy sample_data table
+# SampleType here is label that should match one of your columns in sample_data in experimental samples phyloseq object.
+mck.sam <- data.frame(row.names = c(colnames(mck.otu)),
+                      SampleType = c("MyMockTheoretical","MyMockTheoretical")) %>%  
+  sample_data()
+mck.sam
+
+mck.taxonomy.th.path <- system.file("extdata", "TaxonomyMIBMocks.csv",
+                      package="chkMocks", mustWork = TRUE)
+mck.tax <- read.csv(mck.taxonomy.th.path)
+
+head(mck.tax)
+
+rownames(mck.tax) <- mck.tax$Species
+
+mck.tax <- mck.tax[,-1] %>% as.matrix() 
+
+head(mck.tax)
+
+# Above is our tax_table
+
+# Build a phyloseq object of theoretical composition
+
+ps.th <- phyloseq(otu_table(mck.otu, taxa_are_rows = T), 
+                  sample_data(mck.sam),
+                  tax_table(mck.tax))
+
+ps.th
+
+# Load the experimental mock stored in the package
+ps.mib.w <- system.file("extdata", "ps.mib.rds",
+                        package="chkMocks", mustWork = TRUE)
+#path for file
+ps.mib.w <- readRDS(ps.mib.w)
+
+# taxa names are ASV seqs. Check first 2 names/ASV seqs
+taxa_names(ps.mib.w)[1:2]
+```
+
+After looking through the examples, we need the following components to
+compare our custom theoretical mock to the experimental mocks.
+
+1\. A phyloseq object for theoretical mocks
+```{r}
+# otu_table
+mck.otu <- read.csv(file = "ZymoMock_bacteria_log_dist.csv") %>%
+  # Turn species column to row names
+  column_to_rownames(var = "Species") %>%
+  # Store as matrix
+  as.matrix()
+
+# sam_data
+mck.sam <- data.frame(row.names = c(colnames(mck.otu)),
+                      SampleType = c("ZymoMockLogDistribution")) %>%
+  sample_data()
+
+# tax_table
+mck.tax <- read.csv(file = "tax_table_ZymoMock.csv")
+
+rownames(mck.tax) <- mck.tax$Species
+
+mck.tax <- as.matrix(mck.tax)
+# Build phyloseq
+theor_physeq <- phyloseq(otu_table(mck.otu, taxa_are_rows = TRUE),
+                         sample_data(mck.sam),
+                         tax_table(mck.tax))
+theor_physeq
+```
+
+2\. A phyloseq object for experimental mocks
+```{r}
+# Subset mock samples from the sequencing run
+mock_physeq <- prune_samples(raw_physeq, 
+                             samples = c("16SMock1", "16SMock2", "16SMock3"))
+# Keep only non-zero ASVs 
+mock_physeq <- prune_taxa(taxa_sums(mock_physeq)>0, mock_physeq)
+taxa_names(mock_physeq)
+expmck.otu<- mock_physeq@otu_table
+
+# We have to change the ASV_# names BACK to the nucleic acid sequence
+
+# Read the FASTA files saved during Preprocessing Part 1
+ASV_to_seq <- Biostrings::readDNAStringSet(filepath = "./Data_16S/ASVs.fasta")
+
+# Change row names
+rownames(expmck.otu) <- strsplit(
+  toString(ASV_to_seq[rownames(expmck.otu)]), split = ",")[[1]]
+
+# In later steps, there was an error saying that the sequences contain white space. We will have to remove them
+rownames(expmck.otu) <- gsub(" ","", rownames(expmck.otu))
+# tax_table
+expmck.tax <- mock_physeq@tax_table
+expmck.tax <- subset(expmck.tax, select = -c(ASV,ASVseqs))
+
+# Change the ASV_# names BACK to the nucleic acid sequence
+
+rownames(expmck.tax) <- strsplit(
+  toString(ASV_to_seq[rownames(expmck.tax)]), split = ",")[[1]]
+rownames(expmck.tax) <- gsub(" ","", rownames(expmck.tax))
+# sam_data
+expmck.sam <- mock_physeq@sam_data
+expmck.sam$SampleType <- "ZymoMockLogDistribution"
+
+# Build the experimental mock phyloseq
+expmck_physeq <- phyloseq(otu_table(expmck.otu, taxa_are_rows = TRUE),
+                          sample_data(expmck.sam),
+                          tax_table(expmck.tax))
+```
+### Assign taxonomy to experimental mock using the training set
+```{r}
+expmck.predict <- assignTaxonomyCustomMock(expmck_physeq,
+                                           mock_db = MIBTrainingSet,
+                                           processors = NULL,
+                                           threshold = 50,
+                                           strand = "top",
+                                           verbose = TRUE)
+```
+
+###  Aggregate to genus & Convert to relative abundance
+```{r}
+expmck.predict <- aggregate_taxa(expmck.predict, "species")
+
+# Convert to relative abundance
+expmck.predict <- microbiome::transform(expmck.predict, "compositional")
+```
+
+### Compare Experimental Vs Theoretical Mocks
+```{r}
+sample_data(theor_physeq)$MockType <- "Theoretical"
+sample_data(expmck.predict)$MockTyppe <- "Experimental"
+
+merged_mck <- merge_phyloseq(expmck.predict, theor_physeq)
+
+compare2theorectical(merged_mck, theoretical_id = "MC")
+
+# Visualize the correlation
+cor.table.ref <- compare2theorectical(merged_mck, theoretical = NULL) %>%
+  corrr::focus(MC)
+
+cor.table.ref %>%
+  reshape2::melt() %>% 
+  ggplot(aes(value, term)) +
+  geom_col()+
+  theme_classic()+
+  ylab("Experimental Mocks")+
+  ggtitle("Species level correlation")+
+  scale_x_continuous()
+```
+We see poor correlation because the assignment is based on short reads. 
+Now we will check correlation at genus level.
+```{r}
+merged_mck.genus <- microbiome::aggregate_taxa(merged_mck, "genus")
+compare2theorectical(merged_mck.genus, theoretical_id = "MC")
+cor.table.ref2 <- compare2theorectical(merged_mck.genus, theoretical = NULL) %>%
+  corrr::focus(MC)
+
+cor.table.ref2 %>%
+  reshape2::melt() %>% 
+  ggplot(aes(value, term)) +
+  geom_col(fill = "darkolivegreen3")+
+  theme_classic()+
+  ylab("Experimental Mocks")+
+  xlab("Spearman's correlation")+
+  ggtitle("Genus level correlation")+
+  scale_x_continuous()
+
+```
+### Visualizing mock communites
+```{r}
+colnames(mock_physeq@tax_table)[1] <- "Domain"
+mocks4plot <- merge_phyloseq(mock_physeq, theor_physeq) 
+mocks4plot %>% aggregate_taxa(level = "Genus") %>%
+  transform(transform = "compositional") %>% 
+  plot_composition(otu.sort = "abundance", verbose = TRUE)+
+  theme_classic()
+```
