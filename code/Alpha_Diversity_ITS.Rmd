@@ -208,8 +208,8 @@ obs_rich %>%
 oj_shannon <- div_iNEXT %>% 
   filter(Diversity == "Shannon diversity", Beverage == "Orange Juice") %>% 
   ggplot(aes(x = Shelf_Life_Stage, y = Observed, fill = Thermal))+
-  geom_violin(alpha = 0.75) + 
-  geom_dotplot(binaxis='y', stackdir = "center",position=position_dodge(0.9))+
+  geom_boxplot(alpha = 0.75) + 
+  geom_dotplot(binaxis='y', stackdir = "center",position=position_dodge(0.9), binwidth = 2)+
   scale_fill_manual(values = Thermal_color)+
   theme_classic()+labs(x = "Stage of Shelf-life", y = "Shannon diversity")+
   theme(legend.position = "bottom")
@@ -217,8 +217,8 @@ oj_shannon <- div_iNEXT %>%
 cd_shannon <- div_iNEXT %>% 
   filter(Diversity == "Shannon diversity", Beverage == "Cider") %>% 
   ggplot(aes(x = Shelf_Life_Stage, y = Observed, fill = Thermal))+
-  geom_violin(alpha = 0.75) + 
-  geom_dotplot(binaxis='y', stackdir = "center",position=position_dodge(0.9))+
+  geom_boxplot(alpha = 0.75) + 
+  geom_dotplot(binaxis='y', stackdir = "center",position=position_dodge(0.9), binwidth =1)+
   scale_fill_manual(values = Thermal_color)+
   theme_classic()+labs(x = "Stage of Shelf-life", y = "Shannon diversity")+
   theme(legend.position = "bottom")
@@ -229,8 +229,8 @@ cd_shannon <- div_iNEXT %>%
  oj_simpson <- div_iNEXT %>% 
   filter(Diversity == "Simpson diversity", Beverage == "Orange Juice") %>% 
   ggplot(aes(x = Shelf_Life_Stage, y = Observed, fill = Thermal))+
-  geom_violin(alpha = 0.75) + 
-  geom_dotplot(binaxis='y', stackdir = "center",position=position_dodge(0.9))+
+  geom_boxplot(alpha = 0.75) + 
+  geom_dotplot(binaxis='y', stackdir = "center",position=position_dodge(0.9), binwidth = 1)+
   scale_fill_manual(values = Thermal_color)+
   theme_classic()+labs(x = "Stage of Shelf-life", y = "Simpson diversity")+
   theme(legend.position = "bottom")
@@ -238,8 +238,8 @@ cd_shannon <- div_iNEXT %>%
 cd_simpson <- div_iNEXT %>% 
   filter(Diversity == "Simpson diversity", Beverage == "Cider") %>% 
   ggplot(aes(x = Shelf_Life_Stage, y = Observed, fill = Thermal))+
-  geom_violin(alpha = 0.75) + 
-  geom_dotplot(binaxis='y', stackdir = "center",position=position_dodge(0.9))+
+  geom_boxplot(alpha = 0.75) + 
+  geom_dotplot(binaxis='y', stackdir = "center",position=position_dodge(0.9), binwidth = 1)+
   scale_fill_manual(values = Thermal_color)+
   theme_classic()+labs(x = "Stage of Shelf-life", y = "Simpson diversity")+
   theme(legend.position = "bottom")
@@ -250,6 +250,7 @@ cd_simpson <- div_iNEXT %>%
 ggpubr::ggarrange(oj_shannon, oj_simpson, cd_shannon, cd_simpson, 
                   ncol = 2, nrow = 2, common.legend = TRUE, 
                   labels = c("A", "B", "C", "D"))
+ggsave(filename = "Figure/shannon_simpson_ITS.png", device = "png", height = 5, width = 7, units = "in")
 ```
 ##### Session information
 ```{r}
