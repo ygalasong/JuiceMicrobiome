@@ -140,7 +140,7 @@ contamdf.prev <- isContaminant(raw_physeq_cleaned, method = "prevalence",
 table(contamdf.prev$contaminant)
 
 # Which sequence is the contaminant?
-contam <- subset_samples(raw_physeq_cleaned, contamdf.prev$contaminant)
+contam <- subset_taxa(raw_physeq_cleaned, contamdf.prev$contaminant)
 taxa_names(contam)
 ```
 
