@@ -1,0 +1,278 @@
+---
+title: "Compositional_Barplots"
+author: "Yupawadee Galasong"
+date: "`r Sys.Date()`"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+### Load required packages
+```{r}
+pacman::p_load(phyloseq, tidyverse, install = FALSE)
+
+```
+
+### Load 16S and ITS phyloseq objects
+```{r}
+load(file = "Data_16S/final_physeq.RData")
+
+#Rename the object because 16S and ITS physeq have the same name coming out of the same pre-processing workflow.
+physeq_16S <- final_physeq
+
+load(file = "Data_ITS/final_physeq.RData")
+physeq_ITS <- final_physeq
+
+#Delete the object to keep just two phyloseq objects
+rm(final_physeq)
+```
+
+### Prepare data frames for compositional plots
+Tutorial: <https://rpubs.com/lgschaerer/1006964>
+#### 1. Convert phyloseq objects to data frames
+```{r}
+genus_16S <- physeq_16S %>%
+  # Agglomerate taxa to "Genus" level
+  tax_glom(taxrank = "Genus") %>%  
+  # Transform to relative abundance
+  transform_sample_counts(function(x) {x/sum(x)} ) %>%   
+  # Melt to long format using phyloseq's melt function
+  psmelt()                                               
+head(genus_16S)
+```
+With the ITS taxonomic data, we need to remove the "p__" from "p__(Phylum name)".
+```{r}
+# Replace "p__" with blank
+physeq_ITS@tax_table <- gsub("[[:alnum:]]__","",physeq_ITS@tax_table)
+
+genus_ITS <- physeq_ITS %>%
+  # Agglomerate taxa to "Genus" level
+  tax_glom(taxrank = "Genus") %>%  
+  # Transform to relative abundance
+  transform_sample_counts(function(x) {x/sum(x)} ) %>%   
+  # Melt to long format using phyloseq's melt function
+  psmelt()                                               
+head(genus_ITS)
+
+```
+#### 2. Filter & modify data frames for plotting
+
+```{r}
+# OJ 16S data
+filt_16S_oj <- genus_16S %>%
+  filter(Beverage == "Orange Juice") %>% 
+  # Select
+  select(Phylum, Class, Order, Family, Genus, Sample, Abundance, Treatment, Day, Trial, Shelf_Life_Stage, Spoilage) %>%
+  filter(Abundance > 0) 
+ 
+# Cider 16S data
+filt_16S_cd <- genus_16S %>%
+  filter(Beverage == "Cider") %>% 
+  # Select
+  select(Phylum, Class, Order, Family, Genus, Sample, Abundance, Treatment, Day, Trial, Shelf_Life_Stage, Spoilage) %>%
+  filter(Abundance > 0) 
+
+# OJ ITS data
+filt_ITS_oj <- genus_ITS %>%
+  filter(Beverage == "Orange Juice") %>% 
+  # Select
+  select(Phylum, Class, Order, Family, Genus, Sample, Abundance, Treatment, Day, Trial, Shelf_Life_Stage, Spoilage) %>%
+  filter(Abundance > 0) 
+ 
+# Cider ITS data
+filt_ITS_cd <- genus_ITS %>%
+  filter(Beverage == "Cider") %>% 
+  # Select
+  select(Phylum, Class, Order, Family, Genus, Sample, Abundance, Treatment, Day, Trial, Shelf_Life_Stage, Spoilage) %>%
+  filter(Abundance > 0) 
+```
+### 3. Make compositional plots
+```{r}
+genus_16S_oj <- filt_16S_oj %>%
+  select(Treatment, Trial, Shelf_Life_Stage, Spoilage, Genus, Abundance) %>%
+  group_by(Treatment, Shelf_Life_Stage, Trial) %>%
+  mutate(totalSum = sum(Abundance)) %>%
+  ungroup() %>%
+  group_by(Treatment, Shelf_Life_Stage, Trial, Genus) %>%
+  summarise(
+    Abundance = sum(Abundance),
+    totalSum,
+    RelAb = Abundance/totalSum) %>%
+  unique()
+
+# Check summary statistics
+max(genus_16S_oj$RelAb)
+## [1] 0.9998634
+mean(genus_16S_oj$RelAb)
+## [1] 0.03408399
+min(genus_16S_oj$RelAb)
+## [1] 1.485619e-05
+length(unique(genus_16S_oj$Genus))
+## [1] 197
+```
+We cannot have a readable plot with 197 distinct colors, so we will have to further group some low-abundance taxa together.
+```{r}
+genus_16S_oj <- filt_16S_oj %>%
+  select(Treatment, Trial, Shelf_Life_Stage, Spoilage, Genus, Abundance) %>%
+  group_by(Treatment, Shelf_Life_Stage, Trial) %>%
+  mutate(totalSum = sum(Abundance)) %>%
+  ungroup() %>%
+  group_by(Treatment, Shelf_Life_Stage, Trial, Genus, totalSum) %>%
+  summarise(
+    Abundance = sum(Abundance),
+    Genus = ifelse(Abundance < 0.025, "Others", Genus)) %>%
+  group_by(Treatment, Shelf_Life_Stage, Trial, Genus, totalSum) %>%  
+# now group and summarize again to group newly labeled low abundance taxa together
+  summarise(
+    Abundance = sum(Abundance),
+    RelAb = Abundance/totalSum) %>%
+  unique()
+# Now we are down to 20 genera (including "Others")
+unique(genus_16S_oj$Genus)
+```
+
+Now we are ready to plot
+Bacterial communities in orange juice
+```{r}
+ggplot(genus_16S_oj)+
+  geom_col(mapping = aes(x = Shelf_Life_Stage, y = RelAb, fill = Genus), color = "black", position = "stack", show.legend = TRUE)+
+  facet_grid(cols = vars(Treatment), rows = vars(Trial))+
+  ylab("Relative Abundance") +
+  xlab(NULL)+
+  #scale_fill_manual(values = genus_colors) +
+  theme_linedraw()+
+  theme(axis.text.y = element_text(size = 20, color = "black"),
+        axis.title.y = element_text(size = 18, color = "black"),
+        axis.text.x = element_text(size = 20, angle = 90, vjust = 1, hjust = 0.5, color = "black"),
+        legend.text = element_text(size = 13, face = "italic"),
+        legend.position = "bottom",
+        legend.spacing.x = unit(0.1, 'mm'),
+        legend.spacing.y = unit(0.05, 'mm'),
+        plot.margin=grid::unit(c(0.1,0.1,0.1,0.1), "mm"),
+        strip.text = element_text(face = "bold", angle = 0),
+        legend.title = element_text(face="bold", size = 22))+
+  guides(fill=guide_legend(ncol=4,byrow =FALSE))
+```
+Bacterial communities in cider
+```{r}
+genus_16S_cd <- filt_16S_cd %>%
+  select(Treatment, Trial, Shelf_Life_Stage, Spoilage, Genus, Abundance) %>%
+  group_by(Treatment, Shelf_Life_Stage, Trial) %>%
+  mutate(totalSum = sum(Abundance)) %>%
+  ungroup() %>%
+  group_by(Treatment, Shelf_Life_Stage, Trial, Genus, totalSum) %>%
+  summarise(
+    Abundance = sum(Abundance),
+    Genus = ifelse(Abundance < 0.05, "Others", Genus)) %>%
+  group_by(Treatment, Shelf_Life_Stage, Trial, Genus, totalSum) %>%  
+# now group and summarize again to group newly labeled low abundance taxa together
+  summarise(
+    Abundance = sum(Abundance),
+    RelAb = Abundance/totalSum) %>%
+  unique()
+# Now we are down to 20 genera (including "Others")
+unique(genus_16S_cd$Genus)
+```
+
+```{r}
+ggplot(genus_16S_cd)+
+  geom_col(mapping = aes(x = Shelf_Life_Stage, y = RelAb, fill = Genus), color = "black", position = "stack", show.legend = TRUE)+
+  facet_grid(cols = vars(Treatment), rows = vars(Trial))+
+  ylab("Relative Abundance") +
+  xlab(NULL)+
+  #scale_fill_manual(values = genus_colors) +
+  theme_linedraw()+
+  theme(axis.text.y = element_text(size = 20, color = "black"),
+        axis.title.y = element_text(size = 18, color = "black"),
+        axis.text.x = element_text(size = 20, angle = 90, vjust = 1, hjust = 0.5, color = "black"),
+        legend.text = element_text(size = 13, face = "italic"),
+        legend.position = "bottom",
+        legend.spacing.x = unit(0.1, 'mm'),
+        legend.spacing.y = unit(0.05, 'mm'),
+        plot.margin=grid::unit(c(0.1,0.1,0.1,0.1), "mm"),
+        strip.text = element_text(face = "bold", angle = 0),
+        legend.title = element_text(face="bold", size = 22))+
+  guides(fill=guide_legend(ncol=4,byrow =FALSE))
+```
+Fungal communities in orange juice
+```{r}
+genus_ITS_oj <- filt_ITS_oj %>%
+  select(Treatment, Trial, Shelf_Life_Stage, Spoilage, Genus, Abundance) %>%
+  group_by(Treatment, Shelf_Life_Stage, Trial) %>%
+  mutate(totalSum = sum(Abundance)) %>%
+  ungroup() %>%
+  group_by(Treatment, Shelf_Life_Stage, Trial, Genus, totalSum) %>%
+  summarise(
+    Abundance = sum(Abundance),
+    Genus = ifelse(Abundance < 0.025, "Others", Genus)) %>%
+  group_by(Treatment, Shelf_Life_Stage, Trial, Genus, totalSum) %>%  
+# now group and summarize again to group newly labeled low abundance taxa together
+  summarise(
+    Abundance = sum(Abundance),
+    RelAb = Abundance/totalSum) %>%
+  unique()
+# Now we are down to 22 genera (including "Others")
+unique(genus_ITS_oj$Genus)
+```
+
+```{r}
+ggplot(genus_ITS_oj)+
+  geom_col(mapping = aes(x = Shelf_Life_Stage, y = RelAb, fill = Genus), color = "black", position = "stack", show.legend = TRUE)+
+  facet_grid(cols = vars(Treatment), rows = vars(Trial))+
+  ylab("Relative Abundance") +
+  xlab(NULL)+
+  #scale_fill_manual(values = genus_colors) +
+  theme_linedraw()+
+  theme(axis.text.y = element_text(size = 20, color = "black"),
+        axis.title.y = element_text(size = 18, color = "black"),
+        axis.text.x = element_text(size = 20, angle = 90, vjust = 1, hjust = 0.5, color = "black"),
+        legend.text = element_text(size = 13, face = "italic"),
+        legend.position = "bottom",
+        legend.spacing.x = unit(0.1, 'mm'),
+        legend.spacing.y = unit(0.05, 'mm'),
+        plot.margin=grid::unit(c(0.1,0.1,0.1,0.1), "mm"),
+        strip.text = element_text(face = "bold", angle = 0),
+        legend.title = element_text(face="bold", size = 22))+
+  guides(fill=guide_legend(ncol=4,byrow =FALSE))
+```
+Fungal communities in cider
+```{r}
+genus_ITS_cd <- filt_ITS_cd %>%
+  select(Treatment, Trial, Shelf_Life_Stage, Spoilage, Genus, Abundance) %>%
+  group_by(Treatment, Shelf_Life_Stage, Trial) %>%
+  mutate(totalSum = sum(Abundance)) %>%
+  ungroup() %>%
+  group_by(Treatment, Shelf_Life_Stage, Trial, Genus, totalSum) %>%
+  summarise(
+    Abundance = sum(Abundance),
+    Genus = ifelse(Abundance < 0.05, "Others", Genus)) %>%
+  group_by(Treatment, Shelf_Life_Stage, Trial, Genus, totalSum) %>%  
+# now group and summarize again to group newly labeled low abundance taxa together
+  summarise(
+    Abundance = sum(Abundance),
+    RelAb = Abundance/totalSum) %>%
+  unique()
+# Now we are down to 19 genera (including "Others")
+unique(genus_ITS_cd$Genus)
+```
+
+```{r}
+ggplot(genus_ITS_cd)+
+  geom_col(mapping = aes(x = Shelf_Life_Stage, y = RelAb, fill = Genus), color = "black", position = "stack", show.legend = TRUE)+
+  facet_grid(cols = vars(Treatment), rows = vars(Trial))+
+  ylab("Relative Abundance") +
+  xlab(NULL)+
+  #scale_fill_manual(values = genus_colors) +
+  theme_linedraw()+
+  theme(axis.text.y = element_text(size = 20, color = "black"),
+        axis.title.y = element_text(size = 18, color = "black"),
+        axis.text.x = element_text(size = 20, angle = 90, vjust = 1, hjust = 0.5, color = "black"),
+        legend.text = element_text(size = 13, face = "italic"),
+        legend.position = "bottom",
+        legend.spacing.x = unit(0.1, 'mm'),
+        legend.spacing.y = unit(0.05, 'mm'),
+        plot.margin=grid::unit(c(0.1,0.1,0.1,0.1), "mm"),
+        strip.text = element_text(face = "bold", angle = 0),
+        legend.title = element_text(face="bold", size = 22))+
+  guides(fill=guide_legend(ncol=4,byrow =FALSE))
+```
