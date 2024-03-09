@@ -50,7 +50,7 @@ names(Stage_color) <- c("Beginning", "Day14", "End")
 Stage_shape <- c(15,16,17)
 names(Stage_shape) <- c("Beginning", "Day14", "End")
 
-Spoiled_color <- c("#E08E45", "#6B2737")
+Spoiled_color <- c("#FFEAD0", "#F76F8E")
 names(Spoiled_color) <- c("Not spoiled", "Spoiled")
 
 Thermal_color <- c("#EB4511","#1C3144","#FFBA08")
@@ -110,8 +110,8 @@ The goal of TEMPTED is to perform dimensionality reduction for multivariate long
 
 #### Load the data and modify to the format required by 'tempted' package
 ```{r}
-# load("/local/workdir/yg225/JuiceMicrobiome/Data_ITS/metadata.RData")
-# load("/local/workdir/yg225/JuiceMicrobiome/Data_ITS/final_physeq.RData")
+load("/local/workdir/yg225/JuiceMicrobiome/Data_ITS/metadata.RData")
+load("/local/workdir/yg225/JuiceMicrobiome/Data_ITS/final_physeq.RData")
 
 # A data.frame with rows representing samples and matching with data.frame count table and processed table
 ## Create a unique ID for each (juice, treatment) combination
@@ -149,12 +149,19 @@ to_rm <- metatable %>% dplyr::filter(JuiceID %in% c(25,28)) %>% rownames()
 
 # Remove JuiceID 25 and 28 from metatable
 metatable <- metatable %>% dplyr::filter(!(rownames(.)%in% to_rm))
-  
+
 # Remove samples in to_rm from the count table
 counttable <- counttable[!(rownames(counttable) %in% to_rm),]
-res_count <- tempted::tempted_all(counttable,
-                                  metatable$Day,
-                                  metatable$JuiceID,
+```
+#### OJ data set
+```{r}
+counttable_oj <- final_physeq %>% subset_samples(Beverage == "Orange Juice") %>% otu_table() %>% t() %>% as.data.frame()
+
+metatable_oj <- metatable %>% filter(Beverage == "Orange Juice")
+
+res_count_oj <- tempted::tempted_all(counttable_oj,
+                                  metatable_oj$Day,
+                                  metatable_oj$JuiceID,
                                   #settings used in the tutorial
                                   threshold = 0.95,
                                   transform = "clr",
@@ -163,72 +170,71 @@ res_count <- tempted::tempted_all(counttable,
                                   smooth = 1e-5,
                                   pct_ratio = 0.1,
                                   pct_aggregate = 1)
-
+#[output]
+#Calculate the 1th Component
+#Convergence reached at dif=7.44034992388313e-05, iter=5
+#Calculate the 2th Component
+#Convergence reached at dif=3.45294506376887e-05, iter=11
 ```
-#### Low-dimensional representation of subjects
+#### Low-dimensional representation of SUBJECTS
 ```{r}
 # Create a data frame for plotting samples on a 2D space
-A_data <- metauni %>% dplyr::filter(!(rownames(.) %in% to_rm))
-rownames(A_data) <- A_data$JuiceID
+A_data_oj <- metauni %>% dplyr::filter(!(rownames(.) %in% to_rm)) %>% filter(Beverage == "Orange Juice")
+
+rownames(A_data_oj) <- A_data_oj$JuiceID
 
 # Subject loadings are stored in A_hat (stored in res_count)
-A_data <- cbind(res_count$A_hat[rownames(A_data),],A_data)
+A_data_oj <- cbind(res_count_oj$A_hat[rownames(A_data_oj),],A_data_oj)
 
 # Plot of subject loading
-A_data %>% ggplot(aes(x = A_data$PC1, y = A_data$PC2, color = Trial))+
-  geom_point(aes(shape = Beverage), size = 4)+ labs(x = "Component 1", 
-                                     y = "Component 2",
+p_oj <- A_data_oj %>% 
+  ggplot(aes(x = A_data_oj$PC1, y = A_data_oj$PC2))+
+  geom_point(aes(shape = Thermal, color = Thermal), 
+             size = 4)+ labs(x = "Component 1", y = "Component 2",
                                      title = "Subject loadings")+
-  scale_color_manual(values = Trial_color)+
-  scale_shape_manual(values = Beverage_shape) + 
-  geom_mark_ellipse(aes(fill = Trial), expand = unit(1, "mm"))+
-  scale_fill_manual(values = Trial_color)+
+  scale_color_manual(values = Thermal_color)
+p_oj + geom_mark_ellipse(aes(fill = Thermal), expand = unit(5, "mm"))+
+scale_fill_manual(values = Thermal_color)+
+  scale_y_continuous(limits = c(-0.4,0.6))+
+  scale_x_continuous(limits = c(-0.4,0.6))+
   theme_classic()
 ```
 
-Clearly, the beta diversity is driven by Trial, i.e. the source of the juice.
-Individual treatments did not form clear cluster. See the plot below.
+Clearly, the beta diversity is driven by Trial, i.e. the source of the juice.We can also kind of see that samples form thermal VS non-thermal cluster. The 'no treatment' cluster very much overlap with the non-thermal cluster.
+See the plot below.
 ```{r}
 # Plot of subject loading
-A_data %>% ggplot(aes(x = A_data$PC1, y = A_data$PC2, color = Treatment))+
-  geom_point(aes(shape = Beverage), size = 4)+ labs(x = "Component 1", 
-                                     y = "Component 2",
-                                     title = "Subject loadings")+
-  scale_color_manual(values = Treatment_color)+
-  scale_shape_manual(values = Beverage_shape) + theme_classic()
+p_oj2 <- A_data_oj %>% ggplot(aes(x = A_data_oj$PC1, y = A_data_oj$PC2))+
+  geom_point(aes(shape = Thermal, color = Treatment), size = 4)+ 
+  labs(x = "Component 1", 
+       y = "Component 2",
+       title = "Subject loadings")+
+  scale_color_manual(values = Treatment_color)
 
-```
-
-Let's group the treatment by "Thermal" variable
-```{r}
-A_data %>% 
-  #filter(Beverage == "Cider") %>%
-  ggplot(aes(x = PC1, y = PC2, color = Thermal))+
-  geom_point(aes(shape = Beverage), size = 4)+ labs(x = "Component 1", 
-                                     y = "Component 2",
-                                     title = "Subject loadings")+
-  scale_color_manual(values = Thermal_color)+
-  scale_shape_manual(values = Beverage_shape) + 
-  geom_mark_ellipse(aes(fill = Thermal), expand = unit(2, "mm"))+
+p_oj2 + geom_mark_ellipse(aes(fill = Thermal), alpha = 0.15,
+                          expand = unit(5, "mm"))+
   scale_fill_manual(values = Thermal_color)+
+  scale_y_continuous(limits = c(-0.4,0.6))+
+  scale_x_continuous(limits = c(-0.4,0.6))+
   theme_classic()
+  
 
 ```
+
 #### Temporal loadings
 ```{r}
 # Temporal loadings are stored in Phi_hat in res_count
-tempted::plot_time_loading(res_count, r = 2)+
-  geom_line(size = 2)+
+tempted::plot_time_loading(res_count_oj, r = 2)+
+  geom_line(linewidth = 2)+
   labs(title = "Temporal Loadings", x = "Time in shelf-life (Days)")+
   theme_classic()
-
 
 ```
 
 #### Feature (ASV) loadings
 ```{r}
 # Feature loadings are stored in B_hat in res_count
-res_count$B_hat %>% as.data.frame() %>%
+res_count_oj$B_hat %>% as.data.frame() %>%
   ggplot(aes(x = PC1, y = PC2))+
   geom_point() + 
   labs(x = "Component 1", y = "Component 2", title = "Feature loading")+
@@ -240,61 +246,68 @@ res_count$B_hat %>% as.data.frame() %>%
 ```{r}
 # Log ratios are stored in metafeature_ration in res_count
 # For grouping variable, subset the JuiceID, a desired column
-tempted::plot_metafeature(res_count$metafeature_ratio, metauni[,c(1,2)]) + 
-  xlab("Days in shelf-life")+theme_classic()
-
+tempted::plot_metafeature(res_count_oj$metafeature_ratio, 
+                          metauni[,c(1,5)],nrow = 2) + 
+  geom_line(color = "black")+
+  xlab("Days in shelf-life")+theme_classic()+
+  scale_color_manual(values = Thermal_color, name = "Treatment")+
+  scale_fill_manual(values = Thermal_color, name = "Treatment")
 ```
 #### Subject trajectories
 ```{r}
 # Subject trajectories are stored in metafeature_aggregate in res_count
-tempted::plot_metafeature(res_count$metafeature_aggregate, metauni[,c(1,5)])+
+tempted::plot_metafeature(res_count_oj$metafeature_aggregate, metauni[,c(1,5)],nrow = 2)+
   xlab("Days in shelf-life")+theme_classic()+
-  scale_fill_manual(values = Thermal_color)+
-  scale_color_manual(values = Thermal_color)
+  scale_fill_manual(values = Thermal_color, name = "Treatment")+
+  scale_color_manual(values = Thermal_color, name = "Treatment")
 
 ```
-#### Low-dimensional representation of samples
+#### Low-dimensional representation of SAMPLES
 ```{r}
-tab_feat_obs <- res_count$metafeature_aggregate %>%
+tab_feat_obs_oj <- res_count_oj$metafeature_aggregate %>%
   as.data.frame()%>%
   rename(JuiceID = subID) %>%
   mutate(JuiceID = as.integer(JuiceID)) %>%
   left_join(.,metauni)
 
-reshape_feat_obs <- reshape(tab_feat_obs,
+reshape_feat_obs_oj <- reshape(tab_feat_obs_oj,
                             idvar = c("JuiceID", "timepoint"),
                             v.names = c("value"),
                             timevar = "PC",
                             direction = "wide")
-colnames(reshape_feat_obs) <- sub(".*value[.]","", colnames(reshape_feat_obs))
+colnames(reshape_feat_obs_oj) <- sub(".*value[.]","", colnames(reshape_feat_obs_oj))
+metatable_oj$timepoint <- metatable_oj$Day
+reshape_feat_obs_oj <- reshape_feat_obs_oj %>% 
+  left_join(., y = metatable_oj, by = c("Treatment", "Trial", "timepoint")) 
 
-reshape_feat_obs %>% 
-  filter(Beverage == "Orange Juice") %>%
-  ggplot(aes(x = PC1, y = PC2, color = timepoint,shape = Thermal))+
-  geom_point(size = 2)+ gradient_color("RdYlBu")+
-  labs(x = "Component 1", y = "Component 2", color = "Days", title = "Orange Juice")+
+
+reshape_feat_obs_oj %>% 
+  ggplot(aes(x = PC1, y = PC2))+
+  geom_point(aes(color = timepoint, shape = Thermal.x),size = 4)+ gradient_color("RdYlBu")+
+  labs(x = "Component 1", y = "Component 2", color = "Days")+
+  geom_mark_ellipse(aes(fill = Thermal.x), alpha = 0.15, expand = unit(0, "mm"))+ 
+  scale_fill_manual(values = Thermal_color)+
   theme_classic()
-
-reshape_feat_obs %>% 
-  filter(Beverage == "Cider") %>%
-  ggplot(aes(x = PC1, y = PC2))+
-  geom_point(aes(color = timepoint,shape = Thermal),size = 2)+ gradient_color("RdYlBu")+
-  labs(x = "Component 1", y = "Component 2", color = "Days")+
-  geom_mark_ellipse(aes(fill = Trial), expand = unit(2, "mm"))+ 
-  theme_classic()+
   #theme(plot.margin = margin(2, 2, 2, 2, "cm"))+
-  scale_x_continuous(limits = c(-10,22))+
-  scale_y_continuous(limits = c(-22,24))
+  #scale_x_continuous(limits = c(-10,22))+
+  #scale_y_continuous(limits = c(-22,24))
 
-reshape_feat_obs %>% 
-  filter(Beverage == "Orange Juice") %>%
-  ggplot(aes(x = PC1, y = PC2))+
-  geom_point(aes(color = timepoint,shape = Thermal),size = 2)+ gradient_color("RdYlBu")+
-  labs(x = "Component 1", y = "Component 2", color = "Days")+
-  geom_mark_ellipse(aes(fill = Trial), expand = unit(2, "mm"))+ 
-  theme_classic()+
-  #theme(plot.margin = margin(2, 2, 2, 2, "cm"))+
-  scale_x_continuous(limits = c(-10,22))+
-  scale_y_continuous(limits = c(-22,24))
 ```
-We finished with TEMPTED tutorials!
+This plot below shows that we cannot distinguish spoiled vs not spoiled
+```{r}
+reshape_feat_obs_oj %>% 
+  filter(Shelf_Life_Stage == "End") %>%
+  ggplot(aes(x = PC1, y = PC2))+
+  geom_point(aes(color = Spoilage, shape = Thermal.x),size = 4)+ 
+  #gradient_color("RdYlBu")+
+  labs(x = "Component 1", y = "Component 2", color = "APDA")+
+  geom_mark_ellipse(aes(fill = Spoilage), 
+                    alpha = 0.15, expand = unit(1, "mm"))+
+  scale_fill_manual(values = Spoiled_color)+
+  theme_classic()
+#theme(plot.margin = margin(2, 2, 2, 2, "cm"))+
+  #scale_x_continuous(limits = c(-10,22))+
+  #scale_y_continuous(limits = c(-22,24))
+```
+
+Trajectory of Top features
