@@ -8,14 +8,7 @@ editor_options:
 ---
 ### Load packages
 ```{r}
-library(zCompositions)
-library(phyloseq)
-library(tidyverse)
-library(ggpubr)
-library(vegan)
-library(microbiome)
-library(tempted)
-library(ggforce)
+pacman::p_load(phyloseq, tidyverse, ggpubr, ggforce, tempted, install = FALSE)
 ```
 
 ### Set up color & shape preferences - Metadata variables
@@ -44,7 +37,7 @@ Treatment_color <- c("#332288", "#882255", "#AA4499", "#CC6677", "#DDCC77",
 names(Treatment_color) <- c("No Treatment", "Pasteurization", 
                            "Pasteurization + SB + PS","Pasteurization + DMDC + NG",
                            "UV","HPP","HPP + DMDC + NG")
-Stage_color <- c("#7CA1CC", "#3D65A5", "#1F449C")
+Stage_color <- c("#aec5eb", "#3D65A5", "#1F449C")
 names(Stage_color) <- c("Beginning", "Day14", "End")
 
 Stage_shape <- c(15,16,17)
@@ -55,11 +48,6 @@ names(Spoiled_color) <- c("Not spoiled", "Spoiled")
 
 Thermal_color <- c("#EB4511","#1C3144","#FFBA08")
 names(Thermal_color) <- c("Thermal", "Non-thermal", "No Treatment")
-```
-### Set up color & shape preferences - Taxanomical ranks
-```{r}
-
-
 ```
 
 ## Microbiome data is compositional.
@@ -72,9 +60,7 @@ names(Thermal_color) <- c("Thermal", "Non-thermal", "No Treatment")
 <https://doi.org/10.1101/2023.07.26.550749>
 
 ### Computational approach for compositional data
-Note: the code in the next four chunks won't be run. It is only for showing the workflow
-using popular packages. For this project, we will use a rather novel method implemented in
-`tempted` package.
+Note: the code in the next four chunks won't be run. It is only for showing the workflow using popular packages. For this project, we will use a rather novel method implemented in `tempted` package.
 ####  Imputation of zeros, left-censored and missing data in compositional data 
 ```{r}
 #zCompostionsR::
@@ -189,13 +175,13 @@ A_data_oj <- cbind(res_count_oj$A_hat[rownames(A_data_oj),],A_data_oj)
 # Plot of subject loading
 p_oj <- A_data_oj %>% 
   ggplot(aes(x = A_data_oj$PC1, y = A_data_oj$PC2))+
-  geom_point(aes(shape = Thermal, color = Thermal), 
+  geom_point(aes(shape = Thermal, color = Treatment), 
              size = 4)+ labs(x = "Component 1", y = "Component 2",
                                      title = "Subject loadings")+
-  scale_color_manual(values = Thermal_color)
-p_oj + geom_mark_ellipse(aes(fill = Thermal), expand = unit(5, "mm"))+
-scale_fill_manual(values = Thermal_color)+
-  scale_y_continuous(limits = c(-0.4,0.6))+
+  scale_color_manual(values = Treatment_color)
+p_oj + geom_mark_ellipse(aes(fill = Trial), expand = unit(5, "mm"))+
+scale_fill_manual(values = Trial_color)+
+  scale_y_continuous(limits = c(-0.4,0.8))+
   scale_x_continuous(limits = c(-0.4,0.6))+
   theme_classic()
 ```
@@ -299,15 +285,105 @@ reshape_feat_obs_oj %>%
   filter(Shelf_Life_Stage == "End") %>%
   ggplot(aes(x = PC1, y = PC2))+
   geom_point(aes(color = Spoilage, shape = Thermal.x),size = 4)+ 
-  #gradient_color("RdYlBu")+
-  labs(x = "Component 1", y = "Component 2", color = "APDA")+
+  scale_color_manual(values = Spoiled_color)+
+  labs(x = "Component 1", y = "Component 2", color = "Spoiled?", shape = "Treatment")+
   geom_mark_ellipse(aes(fill = Spoilage), 
                     alpha = 0.15, expand = unit(1, "mm"))+
   scale_fill_manual(values = Spoiled_color)+
-  theme_classic()
-#theme(plot.margin = margin(2, 2, 2, 2, "cm"))+
-  #scale_x_continuous(limits = c(-10,22))+
-  #scale_y_continuous(limits = c(-22,24))
+  theme_classic()+
+  theme(plot.margin = margin(2, 2, 2, 2, "cm"))+
+  scale_x_continuous(limits = c(-10,24))+
+  scale_y_continuous(limits = c(-22,24))
 ```
 
 Trajectory of Top features
+Component 2
+```{r}
+proportion_table_oj <- counttable_oj/rowSums(counttable_oj)
+
+top_ASVs <- res_count_oj$toppct_ratio %>% as.data.frame() %>% filter(PC2 == TRUE) %>% rownames()
+
+final_physeq@tax_table[top_ASVs][,c("Genus","Species")]
+top_ASVs_PC2_labs <- c("Penicillium sp. 1",
+                       "Penicillium sp. 2",
+                       "Colletotrichum sp.",
+                       "Lasiodiplodia sp.",
+                       "Alternaria sp. 1",
+                       "Diaporthe sp.",
+                       "Botrytis sp.",
+                       "Fusarium sp.",
+                       "Eremothecium sp.",
+                       "Unclassified Didymellaceae",
+                       "Alternaria sp. 1",
+                       "Alternaria sp. 2",
+                       "Meyerozyma sp",
+                       "Diutina sp.")
+names(top_ASVs_PC2_labs) <- top_ASVs
+tab_sel_feat_oj <- cbind(proportion_table_oj[,top_ASVs], metatable_oj)
+tab_sel_feat_oj <- reshape(tab_sel_feat_oj, 
+                        varying=list(top_ASVs), 
+                        times=top_ASVs, 
+                        timevar="feature", 
+                        v.names="RA", 
+                        ids=rownames(tab_sel_feat_oj),
+                        direction="long")
+p_topfeat_oj <- ggplot(data=tab_sel_feat_oj) + 
+  geom_point(aes(x=Day, y=RA, color=Trial, shape = Thermal), 
+             size = 2) +
+  facet_wrap(vars(feature),  labeller = labeller(feature = top_ASVs_PC2_labs))+ scale_color_manual(values = Trial_color) + 
+  labs(x="Day of Shelf-Life", y="Relative Abundance")+  
+  coord_trans(y="sqrt")+theme_pubr()
+# summary plot
+p_topfeat_summary_oj <- plot_feature_summary(proportion_table_oj[,top_ASVs], 
+                     metatable_oj$Day, 
+                     metatable_oj$Spoilage, 
+                     bws=30, nrow = 4) + 
+  labs(x="Day of Shelf-Life", y="Relative Abundance")+  
+  coord_trans(y="sqrt")
+
+```
+
+Component 1
+```{r}
+top_ASVs_PC1 <- res_count_oj$toppct_ratio %>% as.data.frame() %>% filter(PC1 == TRUE) %>% rownames()
+final_physeq@tax_table[top_ASVs_PC1][,c("Genus","Species")]
+top_ASVs_PC1_labs <- c("Penicillium sp. 1",
+                       "Saccharomyces sp.",
+                       "Pichia sp. 1",
+                       "Pichia sp. 2",
+                       "Clavispora sp.",
+                       "Pichia sp. 3",
+                       "Penicillium sp. 2",
+                       "Colletotrichum sp.",
+                       "Pichia sp. 4",
+                       "Starmerella sp. 1",
+                       "Pichia sp. 5",
+                       "Starmerella sp. 2",
+                       "Candida sp.",
+                       "Starmera sp.")
+names(top_ASVs_PC1_labs) <- top_ASVs_PC1
+tab_sel_feat_oj_PC1 <- cbind(proportion_table_oj[,top_ASVs_PC1], metatable_oj)
+tab_sel_feat_oj_PC1 <- reshape(tab_sel_feat_oj_PC1, 
+                        varying=list(top_ASVs_PC1), 
+                        times=top_ASVs_PC1, 
+                        timevar="feature", 
+                        v.names="RA", 
+                        ids=rownames(tab_sel_feat_oj_PC1),
+                        direction="long")
+p_topfeat_oj_PC1 <- ggplot(data=tab_sel_feat_oj_PC1) + 
+  geom_point(aes(x=Day, y=RA, color=APDA, shape = Thermal), 
+             size = 2) +
+  facet_wrap(vars(feature), labeller = labeller(feature = top_ASVs_PC1_labs))+ gradient_color("OrRd")+
+  labs(x="Day of Shelf-Life", y="Relative Abundance")+  
+  coord_trans(y="sqrt")+theme_pubr()
+
+# summary plot
+
+p_topfeat_summary_oj_PC1 <- plot_feature_summary(proportion_table_oj[,top_ASVs_PC1], 
+                     metatable_oj$Day, 
+                     metatable_oj$Thermal, 
+                     bws=30, nrow = 4) + 
+  labs(x="Day of Shelf-Life", y="Relative Abundance")
+str(p_topfeat_summary_oj_PC1)
+
+```
