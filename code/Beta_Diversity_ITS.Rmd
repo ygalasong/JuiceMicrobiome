@@ -5,18 +5,24 @@ date: "`r Sys.Date()`"
 output: html_document
 editor_options: 
   chunk_output_type: console
+  markdown: 
+    wrap: 72
 ---
+
 ### Load packages
+
 ```{r}
 pacman::p_load(phyloseq, tidyverse, ggpubr, ggforce, tempted, install = FALSE)
 ```
 
 ### Set up color & shape preferences - Metadata variables
-Useful palette generator <https://coolors.co/>
-Make sure it is friendly to color blind readers.
+
+Useful palette generator <https://coolors.co/> Make sure it is friendly
+to color blind readers.
 <https://www.datylon.com/blog/data-visualization-for-colorblind-readers#:~:text=The%20first%20rule%20of%20making,out%20of%20these%20two%20hues.>
 Example of how to use color and shape preferences in ggplot
 `ggplot(data = final_physeq@sam_data, aes(x = malic, y = fructose))+geom_point(aes(color = Trial, shape = Trial))+scale_color_manual(values = Trial_color)+scale_shape_manual(values = Trial_shape)`
+
 ```{r}
 # Specify colors
 Trial_color <- c("#fcd0a1","#b1b695","#A690A4")
@@ -51,31 +57,40 @@ names(Thermal_color) <- c("Thermal", "Non-thermal", "No Treatment")
 ```
 
 ## Microbiome data is compositional.
-1. Microbiome Datasets Are Compositional: And This Is Not Optional
-<https://doi.org/10.3389/fmicb.2017.02224>
-2. A Novel Sparse Compositional Technique Reveals Microbial Perturbations
-(robust Aitchison PCA)
-<https://doi.org/10.1128/msystems.00016-19>
-3. Time-Informed Dimensionality Reduction for Longitudinal Microbiome Studies
-<https://doi.org/10.1101/2023.07.26.550749>
+
+1.  Microbiome Datasets Are Compositional: And This Is Not Optional
+    <https://doi.org/10.3389/fmicb.2017.02224>
+2.  A Novel Sparse Compositional Technique Reveals Microbial
+    Perturbations (robust Aitchison PCA)
+    <https://doi.org/10.1128/msystems.00016-19>
+3.  Time-Informed Dimensionality Reduction for Longitudinal Microbiome
+    Studies <https://doi.org/10.1101/2023.07.26.550749>
 
 ### Computational approach for compositional data
-Note: the code in the next four chunks won't be run. It is only for showing the workflow using popular packages. For this project, we will use a rather novel method implemented in `tempted` package.
-####  Imputation of zeros, left-censored and missing data in compositional data 
+
+Note: the code in the next four chunks won't be run. It is only for
+showing the workflow using popular packages. For this project, we will
+use a rather novel method implemented in `tempted` package. \####
+Imputation of zeros, left-censored and missing data in compositional
+data
+
 ```{r}
 #zCompostionsR::
 
 ```
 
 #### Centered log-ration (CLR) transformation
+
 ```{r}
 #clr <- microbiome::transform(final_physeq, "clr")
 #otu_table(clr)[1:5,1:5]
 ```
 
 #### Aitchison distance
-Aitchison distance is basically the Euclidean distances between CLR-transformed 
-sample abundance vectors.
+
+Aitchison distance is basically the Euclidean distances between
+CLR-transformed sample abundance vectors.
+
 ```{r}
 #aitchison <- vegan::vegdist(clr, method = "euclidean")
 
@@ -83,7 +98,8 @@ sample abundance vectors.
 #aitchison2 <- phyloseq::distance(clr, method = "euclidean")
 ```
 
-#### Variance-based compositional principal component analysis (PCA) 
+#### Variance-based compositional principal component analysis (PCA)
+
 ```{r}
 ## while the method is specified as rda (short for Redundancy Analysis),
 ## not specifying the 'formula' argument means we are running an unconstrained RDA,
@@ -92,9 +108,13 @@ sample abundance vectors.
 ```
 
 ### TEMPoral TEnsor Decomposition (TEMPTED)
-The goal of TEMPTED is to perform dimensionality reduction for multivariate longitudinal data, with a special attention to longitudinal microbiome studies.
+
+The goal of TEMPTED is to perform dimensionality reduction for
+multivariate longitudinal data, with a special attention to longitudinal
+microbiome studies.
 
 #### Load the data and modify to the format required by 'tempted' package
+
 ```{r}
 load("/local/workdir/yg225/JuiceMicrobiome/Data_ITS/metadata.RData")
 load("/local/workdir/yg225/JuiceMicrobiome/Data_ITS/final_physeq.RData")
@@ -126,7 +146,10 @@ metauni <- unique(metatable[,c("JuiceID","Beverage","Treatment","Trial","Thermal
 ```
 
 #### Run TEMPTED for Microbiome Count Data
-Following github tutorial <https://github.com/pixushi/tempted?tab=readme-ov-file>
+
+Following github tutorial
+<https://github.com/pixushi/tempted?tab=readme-ov-file>
+
 ```{r}
 # Remove subject with only 1 time point to avoid error
 # An error earlier indicated that JuiceID 25 and 28 must be removed
@@ -139,7 +162,9 @@ metatable <- metatable %>% dplyr::filter(!(rownames(.)%in% to_rm))
 # Remove samples in to_rm from the count table
 counttable <- counttable[!(rownames(counttable) %in% to_rm),]
 ```
-#### OJ data set
+
+### OJ data set
+
 ```{r}
 counttable_oj <- final_physeq %>% subset_samples(Beverage == "Orange Juice") %>% otu_table() %>% t() %>% as.data.frame()
 
@@ -162,7 +187,9 @@ res_count_oj <- tempted::tempted_all(counttable_oj,
 #Calculate the 2th Component
 #Convergence reached at dif=3.45294506376887e-05, iter=11
 ```
+
 #### Low-dimensional representation of SUBJECTS
+
 ```{r}
 # Create a data frame for plotting samples on a 2D space
 A_data_oj <- metauni %>% dplyr::filter(!(rownames(.) %in% to_rm)) %>% filter(Beverage == "Orange Juice")
@@ -186,8 +213,11 @@ scale_fill_manual(values = Trial_color)+
   theme_classic()
 ```
 
-Clearly, the beta diversity is driven by Trial, i.e. the source of the juice.We can also kind of see that samples form thermal VS non-thermal cluster. The 'no treatment' cluster very much overlap with the non-thermal cluster.
-See the plot below.
+Clearly, the beta diversity is driven by Trial, i.e. the source of the
+juice.We can also kind of see that samples form thermal VS non-thermal
+cluster. The 'no treatment' cluster very much overlap with the
+non-thermal cluster. See the plot below.
+
 ```{r}
 # Plot of subject loading
 p_oj2 <- A_data_oj %>% ggplot(aes(x = A_data_oj$PC1, y = A_data_oj$PC2))+
@@ -208,6 +238,7 @@ p_oj2 + geom_mark_ellipse(aes(fill = Thermal), alpha = 0.15,
 ```
 
 #### Temporal loadings
+
 ```{r}
 # Temporal loadings are stored in Phi_hat in res_count
 tempted::plot_time_loading(res_count_oj, r = 2)+
@@ -218,6 +249,7 @@ tempted::plot_time_loading(res_count_oj, r = 2)+
 ```
 
 #### Feature (ASV) loadings
+
 ```{r}
 # Feature loadings are stored in B_hat in res_count
 res_count_oj$B_hat %>% as.data.frame() %>%
@@ -229,6 +261,7 @@ res_count_oj$B_hat %>% as.data.frame() %>%
 ```
 
 #### Log ratio of top features
+
 ```{r}
 # Log ratios are stored in metafeature_ration in res_count
 # For grouping variable, subset the JuiceID, a desired column
@@ -239,7 +272,9 @@ tempted::plot_metafeature(res_count_oj$metafeature_ratio,
   scale_color_manual(values = Thermal_color, name = "Treatment")+
   scale_fill_manual(values = Thermal_color, name = "Treatment")
 ```
+
 #### Subject trajectories
+
 ```{r}
 # Subject trajectories are stored in metafeature_aggregate in res_count
 tempted::plot_metafeature(res_count_oj$metafeature_aggregate, metauni[,c(1,5)],nrow = 2)+
@@ -248,7 +283,9 @@ tempted::plot_metafeature(res_count_oj$metafeature_aggregate, metauni[,c(1,5)],n
   scale_color_manual(values = Thermal_color, name = "Treatment")
 
 ```
+
 #### Low-dimensional representation of SAMPLES
+
 ```{r}
 tab_feat_obs_oj <- res_count_oj$metafeature_aggregate %>%
   as.data.frame()%>%
@@ -279,7 +316,9 @@ reshape_feat_obs_oj %>%
   #scale_y_continuous(limits = c(-22,24))
 
 ```
+
 This plot below shows that we cannot distinguish spoiled vs not spoiled
+
 ```{r}
 reshape_feat_obs_oj %>% 
   filter(Shelf_Life_Stage == "End") %>%
@@ -296,8 +335,8 @@ reshape_feat_obs_oj %>%
   scale_y_continuous(limits = c(-22,24))
 ```
 
-Trajectory of Top features
-Component 2
+Trajectory of Top features Component 2
+
 ```{r}
 proportion_table_oj <- counttable_oj/rowSums(counttable_oj)
 
@@ -344,6 +383,7 @@ p_topfeat_summary_oj <- plot_feature_summary(proportion_table_oj[,top_ASVs],
 ```
 
 Component 1
+
 ```{r}
 top_ASVs_PC1 <- res_count_oj$toppct_ratio %>% as.data.frame() %>% filter(PC1 == TRUE) %>% rownames()
 final_physeq@tax_table[top_ASVs_PC1][,c("Genus","Species")]
@@ -385,5 +425,292 @@ p_topfeat_summary_oj_PC1 <- plot_feature_summary(proportion_table_oj[,top_ASVs_P
                      bws=30, nrow = 4) + 
   labs(x="Day of Shelf-Life", y="Relative Abundance")
 str(p_topfeat_summary_oj_PC1)
+
+```
+### Cider data set
+
+```{r}
+# Remove subject with only 1 time point to avoid error
+# An error earlier indicated that JuiceID 25 and 28 must be removed
+# Get sample name (ITSXXX) corresponding to JuiceID 25 and 28
+to_rm <- metatable %>% dplyr::filter(JuiceID %in% c(25,28)) %>% rownames()
+
+# Remove JuiceID 25 and 28 from metatable
+metatable <- metatable %>% dplyr::filter(!(rownames(.)%in% to_rm))
+
+# Remove samples in to_rm from the count table
+counttable <- counttable[!(rownames(counttable) %in% to_rm),]
+```
+
+```{r}
+counttable_cd <- final_physeq %>% subset_samples(Beverage == "Cider") %>% otu_table() %>% t() %>% as.data.frame() %>% dplyr::filter(!(rownames(.)%in% to_rm))
+
+metatable_cd <- metatable %>% filter(Beverage == "Cider")
+res_count_cd <- tempted::tempted_all(counttable_cd,
+                                  metatable_cd$Day,
+                                  metatable_cd$JuiceID,
+                                  #settings used in the tutorial
+                                  threshold = 0.95,
+                                  transform = "clr",
+                                  pseudo = 0.5,
+                                  r = 2,
+                                  smooth = 1e-5,
+                                  pct_ratio = 0.1,
+                                  pct_aggregate = 1)
+#[output]
+#Calculate the 1th Component
+#Convergence reached at dif=4.6052402294862e-05, iter=5
+#Calculate the 2th Component
+#Convergence reached at dif=4.04833717349942e-05, iter=4
+```
+
+#### Low-dimensional representation of SUBJECTS
+
+```{r}
+# Create a data frame for plotting samples on a 2D space
+A_data_cd <- metauni %>% dplyr::filter(!(rownames(.) %in% to_rm)) %>% filter(Beverage == "Cider")
+
+rownames(A_data_cd) <- A_data_cd$JuiceID
+
+# Subject loadings are stored in A_hat (stored in res_count)
+A_data_cd <- cbind(res_count_cd$A_hat[rownames(A_data_cd),],A_data_cd)
+
+# Plot of subject loading
+p_cd <- A_data_cd %>% 
+  ggplot(aes(x = A_data_cd$PC1, y = A_data_cd$PC2))+
+  geom_point(aes(shape = Thermal, color = Treatment), 
+             size = 4)+ labs(x = "Component 1", y = "Component 2",
+                                     title = "Subject loadings")+
+  scale_color_manual(values = Treatment_color)
+p_cd + geom_mark_ellipse(aes(fill = Trial), expand = unit(3, "mm"))+
+scale_fill_manual(values = Trial_color)+
+  scale_y_continuous(limits = c(-0.4,0.8))+
+  scale_x_continuous(limits = c(-0.4,0.6))+
+  theme_classic()
+```
+
+Clearly, the beta diversity is driven by Trial, i.e. the source of the
+juice.Unlike in orange juice, cider samples don't seem to form thermal Vs non-thermal clusters.
+
+```{r}
+# Plot of subject loading
+p_cd2 <- A_data_cd %>% ggplot(aes(x = A_data_cd$PC1, y = A_data_cd$PC2))+
+  geom_point(aes(shape = Thermal, color = Treatment), size = 4)+ 
+  labs(x = "Component 1", 
+       y = "Component 2",
+       title = "Subject loadings")+
+  scale_color_manual(values = Treatment_color)
+
+p_cd2 + geom_mark_ellipse(aes(fill = Thermal), alpha = 0.15,
+                          expand = unit(0, "mm"))+
+  scale_fill_manual(values = Thermal_color)+
+  scale_y_continuous(limits = c(-0.4,0.8))+
+  scale_x_continuous(limits = c(-0.6,0.6))+
+  theme_classic()
+  
+
+```
+
+#### Temporal loadings
+
+```{r}
+# Temporal loadings are stored in Phi_hat in res_count
+tempted::plot_time_loading(res_count_cd, r = 2)+
+  geom_line(linewidth = 2)+
+  labs(title = "Temporal Loadings", x = "Time in shelf-life (Days)")+
+  theme_classic()
+
+```
+
+#### Feature (ASV) loadings
+
+```{r}
+# Feature loadings are stored in B_hat in res_count
+res_count_cd$B_hat %>% as.data.frame() %>%
+  ggplot(aes(x = PC1, y = PC2))+
+  geom_point() + 
+  labs(x = "Component 1", y = "Component 2", title = "Feature loading")+
+  theme_classic()
+
+```
+
+#### Log ratio of top features
+
+```{r}
+# Log ratios are stored in metafeature_ration in res_count
+# For grouping variable, subset the JuiceID, a desired column
+tempted::plot_metafeature(res_count_cd$metafeature_ratio, 
+                          metauni[,c(1,5)],nrow = 2) + 
+  geom_line(color = "black")+
+  xlab("Days in shelf-life")+theme_classic()+
+  scale_color_manual(values = Thermal_color, name = "Treatment")+
+  scale_fill_manual(values = Thermal_color, name = "Treatment")
+```
+
+#### Subject trajectories
+
+```{r}
+# Subject trajectories are stored in metafeature_aggregate in res_count
+tempted::plot_metafeature(res_count_cd$metafeature_aggregate, metauni[,c(1,5)],nrow = 2)+
+  xlab("Days in shelf-life")+theme_classic()+
+  scale_fill_manual(values = Thermal_color, name = "Treatment")+
+  scale_color_manual(values = Thermal_color, name = "Treatment")
+
+```
+
+#### Low-dimensional representation of SAMPLES
+
+```{r}
+tab_feat_obs_cd <- res_count_cd$metafeature_aggregate %>%
+  as.data.frame()%>%
+  rename(JuiceID = subID) %>%
+  mutate(JuiceID = as.integer(JuiceID)) %>%
+  left_join(.,metauni)
+
+reshape_feat_obs_cd <- reshape(tab_feat_obs_cd,
+                            idvar = c("JuiceID", "timepoint"),
+                            v.names = c("value"),
+                            timevar = "PC",
+                            direction = "wide")
+colnames(reshape_feat_obs_cd) <- sub(".*value[.]","", colnames(reshape_feat_obs_cd))
+metatable_cd$timepoint <- metatable_cd$Day
+reshape_feat_obs_cd <- reshape_feat_obs_cd %>% 
+  left_join(., y = metatable_cd, by = c("Treatment", "Trial", "timepoint")) 
+
+
+reshape_feat_obs_cd %>% 
+  ggplot(aes(x = PC1, y = PC2))+
+  geom_point(aes(color = timepoint, shape = Thermal.x),size = 4)+ gradient_color("RdYlBu")+
+  labs(x = "Component 1", y = "Component 2", color = "Days")+
+  geom_mark_ellipse(aes(fill = Thermal.x), alpha = 0.15, expand = unit(0, "mm"))+ 
+  scale_fill_manual(values = Thermal_color)+
+  theme_classic()
+  #theme(plot.margin = margin(2, 2, 2, 2, "cm"))+
+  #scale_x_continuous(limits = c(-10,22))+
+  #scale_y_continuous(limits = c(-22,24))
+
+```
+
+This plot below shows that we cannot distinguish spoiled vs not spoiled
+
+```{r}
+reshape_feat_obs_cd %>% 
+  filter(Shelf_Life_Stage == "End") %>%
+  ggplot(aes(x = PC1, y = PC2))+
+  geom_point(aes(color = Spoilage, shape = Thermal.x),size = 4)+ 
+  scale_color_manual(values = Spoiled_color)+
+  labs(x = "Component 1", y = "Component 2", color = "Spoiled?", shape = "Treatment")+
+  geom_mark_ellipse(aes(fill = Spoilage), 
+                    alpha = 0.15, expand = unit(1, "mm"))+
+  scale_fill_manual(values = Spoiled_color)+
+  theme_classic()+
+  theme(plot.margin = margin(2, 2, 2, 2, "cm"))+
+  scale_x_continuous(limits = c(-22,22))+
+  scale_y_continuous(limits = c(-10,22))
+```
+
+Trajectory of Top features Component 2
+
+```{r}
+proportion_table_cd <- counttable_cd/rowSums(counttable_cd)
+
+top_ASVs <- res_count_cd$toppct_ratio %>% as.data.frame() %>% filter(PC2 == TRUE) %>% rownames()
+
+final_physeq@tax_table[top_ASVs][,c("Family","Genus","Species")]
+top_ASVs_PC2_labs <- c("Unclassified \n Saccharomycetales 1",
+                       "Cladosporium sp.",
+                       "Candida sp.",
+                       "Pichia sp.",
+                       "Unclassified \n Saccharomycetales 2",
+                       "Kurtzmaniella sp.",
+                       "Chaetocapnodium sp. 1",
+                       "Didymella sp. 1",
+                       "Bulleromyces sp.",
+                       "Hanseniaspora sp.",
+                       "Aureobasidium sp.",
+                       "Unclassified \n Didymellaceae",
+                       "Chaetocapnodium sp. 2",
+                       "Didymella sp. 2",
+                       "Saccharomycopsis sp.",
+                       "Zygosaccharomyces sp.",
+                       "Oidiodendron sp.",
+                       "Melanchlenus sp.")
+names(top_ASVs_PC2_labs) <- top_ASVs
+tab_sel_feat_cd <- cbind(proportion_table_cd[,top_ASVs], metatable_cd)
+tab_sel_feat_cd <- reshape(tab_sel_feat_cd, 
+                        varying=list(top_ASVs), 
+                        times=top_ASVs, 
+                        timevar="feature", 
+                        v.names="RA", 
+                        ids=rownames(tab_sel_feat_cd),
+                        direction="long")
+p_topfeat_cd <- ggplot(data=tab_sel_feat_cd) + 
+  geom_point(aes(x=Day, y=RA, color=Thermal, shape = Trial), alpha = 0.75,
+             size = 3) +
+  facet_wrap(vars(feature),  labeller = labeller(feature = top_ASVs_PC2_labs), nrow = 4)+ scale_color_manual(values = Thermal_color) + 
+  labs(x="Day of Shelf-Life", y="Relative Abundance")+  
+  coord_trans(y="sqrt")+theme_pubr()
+# summary plot
+p_topfeat_summary_cd <- plot_feature_summary(proportion_table_cd[,top_ASVs], 
+                     metatable_cd$Day, 
+                     metatable_cd$Spoilage, 
+                     bws=30, nrow = 4) + 
+  labs(x="Day of Shelf-Life", y="Relative Abundance")
+
+```
+
+Component 1
+
+```{r}
+top_ASVs_PC1 <- res_count_cd$toppct_ratio %>% as.data.frame() %>% filter(PC1 == TRUE) %>% rownames()
+final_physeq@tax_table[top_ASVs_PC1][,c("Family","Genus","Species")]
+top_ASVs_PC1_labs <- c("Mrakia sp. 1",
+                       "Penicillium sp.",
+                       "Mrakia sp. 2",
+                       "Mrakia sp. 3",
+                       "Cystofilobasidium sp. 1",
+                       "Mrakia sp. 4",
+                       "Mrakia sp. 5",
+                       "Pichia sp. 1",
+                       "Cephaloascus sp.",
+                       "Cystofilobasidium sp. 2",
+                       "Pichia sp. 2",
+                       "Metschnikowia sp.",
+                       "Starmerella sp.",
+                       "Saturnispora sp.",
+                       "Unclassified \n Mrakiaceae",
+                       "Cystofilobasidium sp. 3",
+                       "Mrakia sp. 6",
+                       "Rhizophaera sp.")
+names(top_ASVs_PC1_labs) <- top_ASVs_PC1
+tab_sel_feat_cd_PC1 <- cbind(proportion_table_cd[,top_ASVs_PC1], metatable_cd)
+tab_sel_feat_cd_PC1 <- reshape(tab_sel_feat_cd_PC1, 
+                        varying=list(top_ASVs_PC1), 
+                        times=top_ASVs_PC1, 
+                        timevar="feature", 
+                        v.names="RA", 
+                        ids=rownames(tab_sel_feat_cd_PC1),
+                        direction="long")
+p_topfeat_cd_PC1 <- ggplot(data=tab_sel_feat_cd_PC1) + 
+  geom_point(aes(x=Day, y=RA, color=Thermal, shape = Spoilage), alpha = 0.75, size = 3) +
+  facet_wrap(vars(feature), labeller = labeller(feature = top_ASVs_PC1_labs))+ #gradient_color("OrRd")+
+  scale_color_manual(values = Thermal_color)+
+  labs(x="Day of Shelf-Life", y="Relative Abundance")+  
+  coord_trans(y="sqrt")+theme_pubr()
+
+# summary plot
+
+p_topfeat_summary_cd_PC1 <- plot_feature_summary(proportion_table_cd[,top_ASVs_PC1], 
+                     metatable_cd$Day, 
+                     metatable_cd$Thermal, 
+                     bws=30, nrow = 4) + 
+  labs(x="Day of Shelf-Life", y="Relative Abundance")+
+  guides(color = guide_legend(title = "Treatment"),
+         fill = guide_legend(title = "Treatment")) +
+  scale_fill_manual(values = Thermal_color)+
+  scale_color_manual(values = Thermal_color)+
+  facet_grid(labeller = top_ASVs_PC1_labs)+
+  facet_wrap(vars(feature_all), scales = "free_y", labeller = labeller(feature_all = top_ASVs_PC1_labs))+
+  theme_pubr()
 
 ```
