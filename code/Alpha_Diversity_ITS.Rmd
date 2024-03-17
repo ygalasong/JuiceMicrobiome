@@ -8,61 +8,24 @@ editor_options:
 ---
 ### Load packages
 ```{r}
-library(phyloseq)
-library(iNEXT)
-library(tidyverse)
-library(ggpubr)
+pacman::p_load(phyloseq, iNEXT, tidyverse, ggpubr, install = FALSE)
+```
+
+### Load color and shape preferences
+```{r}
+source(file = "code/colors.R")
 
 ```
 
-### Set up color & shape preferences - Metadata variables
-Useful palette generator <https://coolors.co/>
-Make sure it is friendly to color blind readers.
-<https://www.datylon.com/blog/data-visualization-for-colorblind-readers#:~:text=The%20first%20rule%20of%20making,out%20of%20these%20two%20hues.>
-Example of how to use color and shape preferences in ggplot
-`ggplot(data = final_physeq@sam_data, aes(x = malic, y = fructose))+geom_point(aes(color = Trial, shape = Trial))+scale_color_manual(values = Trial_color)+scale_shape_manual(values = Trial_shape)`
+### Biodiversity Analysis: OJ dataset
 ```{r}
-# Specify colors
-Trial_color <- c("#fcd0a1","#b1b695","#A690A4")
-# Specify which trial each color is for
-names(Trial_color) <- c(1,2,3)
+load(file = "Data_ITS/final_physeq.RData")
 
-Trial_shape <- c(15,16,17)
-names(Trial_shape) <- c(1,2,3)
-
-Beverage_color <- c("#FFC759","#FF7B9C")
-names(Beverage_color) <- c("Orange Juice","Cider")
-
-Beverage_shape <- c(18,19)
-names(Beverage_shape) <- c("Orange Juice","Cider")
-
-Treatment_color <- c("#332288", "#882255", "#AA4499", "#CC6677", "#DDCC77", 
-                     "#44AA99", "#117733")
-names(Treatment_color) <- c("No Treatment", "Pasteurization", 
-                           "Pasteurization + SB + PS","Pasteurization + DMDC + NG",
-                           "UV","HPP","HPP + DMDC + NG")
-Stage_color <- c("#7CA1CC", "#3D65A5", "#1F449C")
-names(Stage_color) <- c("Beginning", "Day14", "End")
-
-Stage_shape <- c(15,16,17)
-names(Stage_shape) <- c("Beginning", "Day14", "End")
-
-Spoiled_color <- c("#E08E45", "#6B2737")
-names(Spoiled_color) <- c("Not spoiled", "Spoiled")
-
-Thermal_color <- c("#EB4511","#1C3144","#FFBA08")
-names(Thermal_color) <- c("Thermal", "Non-thermal", "No Treatment")
-```
-### Set up color & shape preferences - Taxanomical ranks
-```{r}
-
-
-```
-
-### Biodiversity Analysis
-```{r}
 # Create ASV data frame as an input for iNEXT
-iNEXT_input <- as.data.frame(final_physeq@otu_table)
+iNEXT_input_oj <- final_physeq %>% 
+  subset_samples(Beverage == "Orange Juice") %>%
+  otu_table() %>%
+  as.data.frame()
 
 # For reproducibility
 set.seed(777)
@@ -72,7 +35,7 @@ set.seed(777)
 #q = 1 means Number of common taxa (equivalent to exp(Shanon))
 #q = 2 means Number of dominant taxa (inverse Simpson)
 
-#iNEXT_output <- iNEXT(iNEXT_input, q = c(0,1,2), datatype = "abundance")
+iNEXT_output_oj <- iNEXT(iNEXT_input_oj, q = c(0,1,2), datatype = "abundance")
 ```
 
 #### Export iNEXT output as a dataframe suitable for plotting 
@@ -91,166 +54,146 @@ metadata <- final_physeq@sam_data %>% data.frame() %>%
     (Treatment == "UV")~"Non-thermal",
     (Treatment == "No Treatment")~"No Treatment"))
 
-div_iNEXT <- iNEXT_output$AsyEst %>%
-  left_join(., metadata, by = "Assemblage") %>% 
+metadata_oj <- metadata %>% filter(Beverage == "Orange Juice")
+
+div_iNEXT_oj <- iNEXT_output_oj$AsyEst %>%
+  left_join(., metadata_oj, by = "Assemblage") %>% 
   # Change diversity measures to factor for plotting
   mutate(Diversity = as.factor(Diversity))
 ```
 
 #### Species richness over shelf-life
 ```{r}
-RichnessPlot1 <- div_iNEXT %>% filter(Diversity == "Species richness") %>%
+# Plot Richness over Stage of Shelf-Life, points colored based on 'Treatment', shaped by 'Thermal'
+div_iNEXT_oj %>% filter(Diversity == "Species richness") %>%
   ggplot(aes(x = Shelf_Life_Stage, y = Observed))+
-  geom_point(aes(shape = Beverage, color = Treatment), size = 2, alpha = 0.75)+
-  scale_shape_manual(values = Beverage_shape)+
+  geom_point(aes(color = Treatment, shape = Thermal), size = 4, alpha = 0.75)+
   scale_color_manual(values = Treatment_color)+
   theme_classic() + labs(x = "Stage in Shelf-life", y = "Species Richness")+
   theme(axis.text = element_text(size = 12),
         axis.title = element_text(size = 14),
         legend.text = element_text(size = 12))
 
-RichnessPlot2 <- div_iNEXT %>% filter(Diversity == "Species richness") %>%
+# Plot Richness over time, points colored based on 'Treatment'
+div_iNEXT_oj %>% filter(Diversity == "Species richness") %>%
   ggplot(aes(x = Day, y = Observed))+
-  geom_point(aes(shape = Beverage, color = Treatment), size = 2, alpha = 0.75)+
+  geom_point(aes(color = Treatment), size = 4, alpha = 0.75)+
   scale_shape_manual(values = Beverage_shape)+
   scale_color_manual(values = Treatment_color)+
   theme_classic() + labs(x = "Time (Days)", y = "Species Richness")+
   theme(axis.text = element_text(size = 12),
         axis.title = element_text(size = 14),
         legend.text = element_text(size = 12))
-RichnessPlot1
-RichnessPlot2
+
 ```
 
 #### Rarefaction curve
 ```{r}
 # 1. Extract the observed richness from iNEXT output
-obs_rich <- iNEXT_output$iNextEst$size_based %>%
+obs_rich_oj <- iNEXT_output_oj$iNextEst$size_based %>%
   dplyr::filter(Order.q == 0) %>%
   dplyr::filter(Method == "Observed") %>%
   # Include sample metadata
-  left_join(., metadata, by = "Assemblage") 
+  left_join(., metadata_oj, by = "Assemblage") 
   
 
-rarefaction_curve <- 
+rarefaction_curve_oj <- 
   # 2. Extract richness calculated from rarefied samples
-  iNEXT_output$iNextEst$size_based %>% 
+  iNEXT_output_oj$iNextEst$size_based %>% 
   dplyr::filter(Order.q == 0) %>%
   dplyr::filter(Method == "Rarefaction")%>%
   # Include sample metadata
-  left_join(., metadata, by = "Assemblage") %>% 
+  left_join(., metadata_oj, by = "Assemblage") %>% 
   # 3. Plot rarefaction curve
   ggplot(aes(x = m/1000, y = qD, color = Treatment, group = Assemblage))+
   scale_color_manual(values = Treatment_color) + 
-  geom_line()+ geom_point(data = obs_rich, 
-             aes(x = m/1000, y = qD, color = Treatment))+
-  facet_grid(.~Beverage)+theme_classic()+
+  geom_line()+ 
+  geom_point(data = obs_rich_oj, 
+             aes(x = m/1000, y = qD, color = Treatment),
+             size = 3)+
+  theme_classic()+
   labs(x = "Number of Sequences (x1000)", y = "Species Richness")
 
-rarefaction_curve
+rarefaction_curve_oj
 
 ```
 
 ### Diversity boxplot
 ```{r}
 # Diversity in orange juice
-obs_rich %>%
-  dplyr::filter(Beverage == "Orange Juice") %>%
-  ggplot(aes(x = Thermal, y = qD, color = Thermal))+
-  geom_boxplot(aes(fill = Thermal), alpha = 0.5)+
-  scale_fill_manual(values = Thermal_color)+
-  scale_color_manual(values = Thermal_color)+
-  geom_jitter(size = 2.5, alpha = 0.75)+
-  theme_classic()+labs(x = "Treatment", y = "Species richness")+
-  facet_grid(.~Shelf_Life_Stage)+
-  theme(axis.text.x = element_text(angle = 45))
-
-# Diversity in cider
-obs_rich %>%
-  dplyr::filter(Beverage == "Cider") %>%
-  ggplot(aes(x = Thermal, y = qD, color = Thermal))+
-  geom_boxplot(aes(fill = Thermal), alpha = 0.5)+
-  scale_fill_manual(values = Thermal_color)+
-  scale_color_manual(values = Thermal_color)+
-  geom_jitter(size = 2.5, alpha = 0.75)+
-  theme_classic()+labs(x = "Treatment", y = "Species richness")+
-  facet_grid(.~Shelf_Life_Stage)+
-  theme(axis.text.x = element_text(angle = 45))
-
-# This boxplot shows that species richness is not significantly affected at the 
-# end of shelf-life for thermally and non-thermally treated ciders.
-obs_rich %>%
-  dplyr::filter(Beverage == "Cider") %>%
+obs_rich_oj %>%
   ggplot(aes(x = Shelf_Life_Stage, y = qD, color = Shelf_Life_Stage))+
   geom_boxplot(aes(fill = Shelf_Life_Stage), alpha = 0.5)+
   scale_fill_manual(values = Stage_color)+
   scale_color_manual(values = Stage_color)+
   geom_jitter(size = 2.5, alpha = 0.75)+
-  theme_classic()+labs(x = "Stage of Shelf-life", y = "Species richness")+
+  theme_classic()+
+  labs(x = "Stage of Shelf Life", 
+       y = "Species richness", 
+       color = "Stage in Shelf Life",
+       fill = "Stage in Shelf Life")+
   facet_grid(.~Thermal)+ stat_kruskal_test()+
-  theme(axis.text.x = element_text(angle = 45))
-# This boxplot shows that species richness is not significantly affected at the 
-# end of shelf-life for untreated and treated orange juices...
-obs_rich %>%
-  dplyr::filter(Beverage == "Orange Juice") %>%
-  ggplot(aes(x = Shelf_Life_Stage, y = qD, color = Shelf_Life_Stage))+
-  geom_boxplot(aes(fill = Shelf_Life_Stage), alpha = 0.75)+
-  scale_fill_manual(values = Stage_color)+
-  scale_color_manual(values = Stage_color)+
-  geom_jitter(size = 2.5, alpha = 0.5)+
-  theme_classic()+labs(x = "Stage of Shelf-life", y = "Species richness")+
-  facet_grid(.~Thermal)+ stat_kruskal_test()+
-  theme(axis.text.x = element_text(angle = 45))
+  #theme(axis.text.x = element_text(angle = 45))
+  theme_pubr()
+
+# This plot below shows that in non-thermally processed OJ, the richness in spoiled OJ are significantly lower than samples that are not spoiled.
+oj_richness <- obs_rich_oj %>%
+  ggplot(aes(x = Spoilage, y = qD, color = Spoilage))+
+  geom_boxplot(aes(color = "black",fill = Spoilage), 
+               outlier.shape = NA)+ 
+  scale_y_continuous(limits = c(0,150))+
+  scale_fill_manual(values = Spoiled_color)+
+  guides(fill = FALSE)+
+  geom_jitter(aes(color = Treatment),size = 2.5)+
+  scale_color_manual(values = Treatment_color,
+                     name = "Treatment")+
+  labs(y = "Species richness")+
+  facet_grid(.~Thermal)+ 
+  stat_kruskal_test(label.y = 130)+
+  #theme(axis.text.x = element_text(angle = 45))+
+  theme_pubr(legend = "right")
 ```
 
 ### Shannon index for species evenness
 ```{r}
-oj_shannon <- div_iNEXT %>% 
-  filter(Diversity == "Shannon diversity", Beverage == "Orange Juice") %>% 
-  ggplot(aes(x = Shelf_Life_Stage, y = Observed, fill = Thermal))+
-  geom_boxplot(alpha = 0.75) + 
-  geom_dotplot(binaxis='y', stackdir = "center",position=position_dodge(0.9), binwidth = 2)+
-  scale_fill_manual(values = Thermal_color)+
-  theme_classic()+labs(x = "Stage of Shelf-life", y = "Shannon diversity")+
-  theme(legend.position = "bottom")
-
-cd_shannon <- div_iNEXT %>% 
-  filter(Diversity == "Shannon diversity", Beverage == "Cider") %>% 
-  ggplot(aes(x = Shelf_Life_Stage, y = Observed, fill = Thermal))+
-  geom_boxplot(alpha = 0.75) + 
-  geom_dotplot(binaxis='y', stackdir = "center",position=position_dodge(0.9), binwidth =1)+
-  scale_fill_manual(values = Thermal_color)+
-  theme_classic()+labs(x = "Stage of Shelf-life", y = "Shannon diversity")+
-  theme(legend.position = "bottom")
+oj_shannon <-div_iNEXT_oj %>%
+  filter(Diversity == "Shannon diversity") %>%
+  ggplot(aes(x = Spoilage, y = Observed, fill = Spoilage))+
+  geom_boxplot(alpha = 0.75, outlier.shape = NA) + 
+  guides(fill = FALSE)+
+  geom_jitter(aes(color = Treatment),size = 2.5)+
+  scale_color_manual(values = Treatment_color)+
+  scale_fill_manual(values = Spoiled_color)+
+  theme_classic()+labs(y = "Shannon diversity")+
+  facet_grid(.~Thermal)+ 
+  stat_kruskal_test(label.y = 29)+
+  theme_pubr(legend = "right")
 ```
 
 ### Simpson diversity measuring the abundant/dominant taxa
 ```{r}
- oj_simpson <- div_iNEXT %>% 
-  filter(Diversity == "Simpson diversity", Beverage == "Orange Juice") %>% 
-  ggplot(aes(x = Shelf_Life_Stage, y = Observed, fill = Thermal))+
-  geom_boxplot(alpha = 0.75) + 
-  geom_dotplot(binaxis='y', stackdir = "center",position=position_dodge(0.9), binwidth = 1)+
-  scale_fill_manual(values = Thermal_color)+
-  theme_classic()+labs(x = "Stage of Shelf-life", y = "Simpson diversity")+
-  theme(legend.position = "bottom")
-
-cd_simpson <- div_iNEXT %>% 
-  filter(Diversity == "Simpson diversity", Beverage == "Cider") %>% 
-  ggplot(aes(x = Shelf_Life_Stage, y = Observed, fill = Thermal))+
-  geom_boxplot(alpha = 0.75) + 
-  geom_dotplot(binaxis='y', stackdir = "center",position=position_dodge(0.9), binwidth = 1)+
-  scale_fill_manual(values = Thermal_color)+
-  theme_classic()+labs(x = "Stage of Shelf-life", y = "Simpson diversity")+
-  theme(legend.position = "bottom")
+ oj_simpson <- div_iNEXT_oj %>%
+  filter(Diversity == "Simpson diversity") %>%
+  ggplot(aes(x = Spoilage, y = Observed, fill = Spoilage))+
+  geom_boxplot(alpha = 0.75, outlier.shape = NA) + 
+  guides(fill = FALSE)+
+  geom_jitter(aes(color = Treatment),size = 2.5)+
+  scale_color_manual(values = Treatment_color)+
+  scale_fill_manual(values = Spoiled_color)+
+  theme_classic()+labs(y = "Simpson diversity")+
+  facet_grid(.~Thermal)+ 
+  stat_kruskal_test(label.y = 19)+
+  theme_pubr(legend = "right")
 
 ```
 ### Combining Shannon and Simpson Diversity Plots
 ```{r}
-ggpubr::ggarrange(oj_shannon, oj_simpson, cd_shannon, cd_simpson, 
-                  ncol = 2, nrow = 2, common.legend = TRUE, 
-                  labels = c("A", "B", "C", "D"))
-ggsave(filename = "Figure/shannon_simpson_ITS.png", device = "png", height = 5, width = 7, units = "in")
+ggpubr::ggarrange(oj_richness, oj_shannon, oj_simpson,
+                  ncol = 1, nrow = 3, 
+                  common.legend = TRUE, 
+                  legend = "bottom",
+                  labels = c("A", "B", "C"))
+ggsave(filename = "Figure/alpha_ITS_oj.png", device = "png", height = 8, width = 8, units = "in")
 ```
 ##### Session information
 ```{r}
