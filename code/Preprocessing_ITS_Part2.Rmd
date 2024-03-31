@@ -10,7 +10,7 @@ editor_options:
 ### Load Packages and Functions
 
 ```{r load packages}
-pacman::p_load(tidyverse, phyloseq, install = FALSE)
+pacman::p_load(tidyverse, phyloseq,PERFect, install = FALSE)
 ```
 
 ### Load raw phyloseq data from DADA2 workflow
@@ -172,5 +172,72 @@ final_physeq <- raw_physeq_cleaned %>%
   subset_samples(Sample_or_Control != "Control Sample")
 save(final_physeq, file = "Data_ITS/final_physeq.RData")
 ```
+#### Filter rare taxa using PERFect algorithm
 
+The filtering methods for this package are wrapped into two main functions, PERFect_sim() (performing simultaneous filtering) and PERFect_perm() (performing permutation filtering). 
+##### Simultaneous filtering
+```{r}
+#load(file = "Data_ITS/final_physeq.RData")
+Counts <- t(final_physeq@otu_table)
+dim(Counts)
+```
+By default, the function PERFect_sim() takes the data table, $X$, as a matrix or data frame, orders it by the taxa abundance, uses 10%, 25% and 50% quantiles for matching the log of DFL to a Skew-Normal distribution and then calculates the p-value for each taxon at the significance level of $\alpha$ = 0.1. The function PERFect_sim() only needs a taxa table as the input, and other parameters are set to default.
+```{r}
+res_sim <- PERFect_sim(X = Counts)
+
+# The "filtX" object from the result stores the filtered OTU matrix
+
+dim(res_sim$filtX)      
+
+# Signal taxa
+sig_asv_sim<- colnames(res_sim$filtX) 
+```
+Extract and plot p-values for all taxa
+```{r}
+head(res_sim$pvals)
+
+#plot using the function pvals_Plots().
+
+p <- pvals_Plots(PERFect = res_sim, X = Counts, quantiles = c(0.25, 0.5, 0.8, 0.9), alpha=0.05)
+
+p$plot + ggtitle("Simultanenous Filtering")
+```
+Alternatively, we can use permutation filtering PERFect_perm() which is more robust than simultaneous filtering. By default, this function generates k = 10000 permutations for each taxa, thus it can be computationally expensive for a large OTU matrix. The package offers user a fast algorithm which employs an unbalanced binary search that optimally finds the cutoff taxon without building the permutation distribution for all taxa. 
+##### Permutation filtering
+Warning: the 'full' algorithm might take up to an hour.
+The 'fast' algorithm might take about 20 mins.
+```{r}
+res_perm <- PERFect_perm(X = Counts, Order = "pvals", pvals_sim = res_sim, algorithm = "full")
+res_perm2 <- PERFect_perm(X = Counts, Order = "pvals", pvals_sim = res_sim, algorithm = "fast", rollmean = FALSE)
+p1 <- pvals_Plots(res_perm, Counts)
+p1 <- p1$plot + ggtitle("Full Algorithm")
+p2 <- pvals_Plots(res_perm2, Counts)
+p2 <- p2$plot + ggtitle("Fast Algorithm")
+ggpubr::ggarrange(p1,p2,ncol = 2, common.legend = TRUE)
+```
+The figure above illustrates the plot of permutation PERFect p-values calculated by the full and fast algorithm for the mock2 dataset. Although both methods achieve the similar cutoff taxon, the fast algorithm only calculate 11 out 46 p-values hence is more computationally efficient.
+
+```{r}
+dim(res_perm$filtX)   
+# signal taxa (full algorithm)   
+sig_asv_full <- colnames(res_perm$filtX) 
+
+dim(res_perm2$filtX)
+# signal taxa (fast algorithm)
+sig_asv_fast <- colnames(res_perm2$filtX)
+
+
+```
+Now we will remove the rare taxa from the phyloseq object.
+```{r}
+PERFect_physeq <- 
+subset_taxa(final_physeq, taxa_names(final_physeq) %in% sig_asv_full)
+```
+#### Remove singletons
+```{r}
+PERFect_physeq <-
+  prune_taxa(taxa_sums(PERFect_physeq) > 1,
+             PERFect_physeq)
+```
 Now, we have a clean phyloseq object ready for diversity analyses!
+
