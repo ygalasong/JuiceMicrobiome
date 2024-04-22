@@ -19,10 +19,10 @@ source(file = "code/colors.R")
 
 ### Biodiversity Analysis: OJ dataset
 ```{r}
-load(file = "Data_ITS/final_physeq.RData")
+load(file = "Data_ITS/PERFect_physeq.RData")
 
 # Create ASV data frame as an input for iNEXT
-iNEXT_input_oj <- final_physeq %>% 
+iNEXT_input_oj <- PERFect_physeq %>% 
   subset_samples(Beverage == "Orange Juice") %>%
   otu_table() %>%
   as.data.frame()
@@ -42,7 +42,7 @@ iNEXT_output_oj <- iNEXT(iNEXT_input_oj, q = c(0,1,2), datatype = "abundance")
 ```{r}
 # Creating a data frame containing diversity measures from iNEXT output
 # plus metadata
-metadata <- final_physeq@sam_data %>% data.frame() %>%
+metadata <- PERFect_physeq@sam_data %>% data.frame() %>%
   rownames_to_column(var = "Assemblage") %>%
   # Add another grouping variable - Thermal Vs Non-thermal Vs No Treatment
     mutate(Thermal = case_when(
@@ -111,10 +111,11 @@ rarefaction_curve_oj <-
   geom_point(data = obs_rich_oj, 
              aes(x = m/1000, y = qD, color = Treatment),
              size = 3)+
-  theme_classic()+
-  labs(x = "Number of Sequences (x1000)", y = "Species Richness")
+  labs(x = "Number of Sequences (x1000)", 
+       y = "Species Richness")+
+  facet_wrap(.~Trial)+
+  theme_pubr()
 
-rarefaction_curve_oj
 
 ```
 
@@ -141,15 +142,14 @@ oj_richness <- obs_rich_oj %>%
   ggplot(aes(x = Spoilage, y = qD, color = Spoilage))+
   geom_boxplot(aes(color = "black",fill = Spoilage), 
                outlier.shape = NA)+ 
-  scale_y_continuous(limits = c(0,150))+
   scale_fill_manual(values = Spoiled_color)+
   guides(fill = FALSE)+
   geom_jitter(aes(color = Treatment),size = 2.5)+
   scale_color_manual(values = Treatment_color,
                      name = "Treatment")+
-  labs(y = "Species richness")+
+  labs(x = NULL, y = "Species richness")+
   facet_grid(.~Thermal)+ 
-  stat_kruskal_test(label.y = 130)+
+  stat_kruskal_test(label.y = 50)+
   #theme(axis.text.x = element_text(angle = 45))+
   theme_pubr(legend = "right")
 ```
@@ -164,9 +164,9 @@ oj_shannon <-div_iNEXT_oj %>%
   geom_jitter(aes(color = Treatment),size = 2.5)+
   scale_color_manual(values = Treatment_color)+
   scale_fill_manual(values = Spoiled_color)+
-  theme_classic()+labs(y = "Shannon diversity")+
+  theme_classic()+labs(x= NULL, y = "Shannon diversity")+
   facet_grid(.~Thermal)+ 
-  stat_kruskal_test(label.y = 29)+
+  stat_kruskal_test(label.y = 21)+
   theme_pubr(legend = "right")
 ```
 
@@ -180,10 +180,10 @@ oj_shannon <-div_iNEXT_oj %>%
   geom_jitter(aes(color = Treatment),size = 2.5)+
   scale_color_manual(values = Treatment_color)+
   scale_fill_manual(values = Spoiled_color)+
-  theme_classic()+labs(y = "Simpson diversity")+
+  theme_classic()+labs(x = NULL, y = "Simpson diversity")+
   facet_grid(.~Thermal)+ 
   theme(legend.position = "bottom")+
-  stat_kruskal_test(label.y = 19)+
+  stat_kruskal_test(label.y = 15)+
   theme_pubr(legend = "right")
 
 ```
@@ -202,7 +202,7 @@ ggsave(filename = "Figure/alpha_ITS_oj.png", device = "png", height = 8, width =
 load(file = "Data_ITS/final_physeq.RData")
 
 # Create ASV data frame as an input for iNEXT
-iNEXT_input_cd <- final_physeq %>% 
+iNEXT_input_cd <- PERFect_physeq %>% 
   subset_samples(Beverage == "Cider") %>%
   otu_table() %>%
   as.data.frame()
@@ -214,6 +214,9 @@ set.seed(777)
 #q = 0 means total number of taxa ("Effective number of species")
 #q = 1 means Number of common taxa (equivalent to exp(Shanon))
 #q = 2 means Number of dominant taxa (inverse Simpson)
+
+# Remove sample(s) with zero counts across ASVs
+iNEXT_input_cd<- iNEXT_input_cd[,-c(which(colSums(iNEXT_input_cd) == 0))]
 
 iNEXT_output_cd <- iNEXT(iNEXT_input_cd, q = c(0,1,2), datatype = "abundance")
 ```
@@ -234,7 +237,8 @@ metadata <- final_physeq@sam_data %>% data.frame() %>%
     (Treatment == "UV")~"Non-thermal",
     (Treatment == "No Treatment")~"No Treatment"))
 
-metadata_cd <- metadata %>% filter(Beverage == "Cider")
+metadata_cd <- metadata %>% filter(Beverage == "Cider") %>%
+  filter(Assemblage != "ITS066")
 
 div_iNEXT_cd <- iNEXT_output_cd$AsyEst %>%
   left_join(., metadata_cd, by = "Assemblage") %>% 
@@ -291,16 +295,20 @@ rarefaction_curve_cd <-
   geom_point(data = obs_rich_cd, 
              aes(x = m/1000, y = qD, color = Treatment),
              size = 3)+
-  theme_classic()+
-  labs(x = "Number of Sequences (x1000)", y = "Species Richness")
+  labs(x = "Number of Sequences (x1000)", 
+       y = "Species Richness")+ 
+  facet_wrap(.~Trial)+
+  theme_pubr()
 
 rarefaction_curve_cd
 
 ggpubr::ggarrange(rarefaction_curve_oj, rarefaction_curve_cd,
-                  ncol = 2, nrow = 1, 
+                  ncol = 1, nrow = 2, 
                   common.legend = TRUE, 
+                  label.x = 0.1,
+                  label.y = 0.9,
                   legend = "bottom",
-                  labels = c("Orange Juice", "Cider"))
+                  labels = c("OJ (ITS)", "Cider (ITS)"))
 ```
 
 ### Diversity boxplot
@@ -322,8 +330,6 @@ obs_rich_cd %>%
   theme_pubr()
 
 obs_rich_cd %>%
-  filter(Spoilage == "Not spoiled",
-         Thermal != "No Treatment") %>%
   ggplot(aes(x = Trial, y = qD, color = Trial))+
   geom_boxplot(aes(fill = Trial), alpha = 0.5)+
   scale_fill_manual(values = Trial_color)+
@@ -355,20 +361,18 @@ obs_rich_oj %>%
   stat_kruskal_test()+
   #theme(axis.text.x = element_text(angle = 45))
   theme_pubr()
-# This plot below shows that in non-thermally processed cider, the richness in spoiled cider are significantly lower than samples that are not spoiled.
+
+
 cd_richness <- obs_rich_cd %>%
-  ggplot(aes(x = Spoilage, y = qD, color = Spoilage))+
-  geom_boxplot(aes(color = "black",fill = Spoilage), 
-               outlier.shape = NA)+ 
-  scale_y_continuous(limits = c(0,150))+
-  scale_fill_manual(values = Spoiled_color)+
-  guides(fill = "none")+
+  ggplot(aes(x = Trial, y = qD))+
+  geom_boxplot(aes(color = "black"), 
+               outlier.shape = NA)+
   geom_jitter(aes(color = Treatment),size = 2.5)+
   scale_color_manual(values = Treatment_color,
                      name = "Treatment")+
   labs(y = "Species richness")+
   facet_grid(.~Thermal)+ 
-  stat_kruskal_test(label.y = 130)+
+  stat_kruskal_test()+
   #theme(axis.text.x = element_text(angle = 45))+
   theme_pubr(legend = "right")
 ```
@@ -413,6 +417,33 @@ ggpubr::ggarrange(cd_richness, cd_shannon, cd_simpson,
                   legend = "bottom",
                   labels = c("A", "B", "C"))
 ggsave(filename = "Figure/alpha_ITS_cd.png", device = "png", height = 8, width = 8, units = "in")
+```
+
+```{r}
+div_iNEXT_cd$Diversity = factor(div_iNEXT_cd$Diversity, levels = c("Species richness", "Shannon diversity","Simpson diversity"))
+
+div_iNEXT_cd %>%
+  # Filter out 'no treatment' group because sample size too small partly due to failed PCR attempts.
+  filter(Thermal != "No Treatment") %>%
+  ggplot(aes(Trial, y = Observed))+
+  geom_boxplot(outlier.shape = NA)+
+  geom_jitter(aes(color = Treatment),size = 2.5)+
+  scale_color_manual(values = Treatment_color)+
+  facet_grid(Thermal~Diversity, scales = "free_y")+
+  stat_kruskal_test(label = "p = {p.format}")+
+  theme_pubr(legend = "right")
+
+div_iNEXT_cd %>%
+  filter(Thermal != "No Treatment") %>%
+  filter(Treatment != "UV") %>%
+  ggplot(aes(Treatment, y = Observed))+
+  geom_boxplot(outlier.shape = NA)+
+  geom_jitter(aes(color = Treatment),size = 2.5)+
+  scale_color_manual(values = Treatment_color)+
+  facet_grid(Thermal~Diversity, scales = "free_y")+
+  stat_kruskal_test(label = "p = {p.format}")+
+  theme_pubr(legend = "right")
+
 ```
 ##### Session information
 ```{r}
