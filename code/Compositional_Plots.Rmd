@@ -9,22 +9,22 @@ editor_options:
 
 ### Load required packages
 ```{r}
-pacman::p_load(phyloseq, tidyverse, install = FALSE)
+pacman::p_load(phyloseq, tidyverse, microViz, ggpubr, install = FALSE)
 
 ```
 
 ### Load 16S and ITS phyloseq objects
 ```{r}
-load(file = "Data_16S/final_physeq.RData")
+load(file = "Data_16S/full_PERF_physeq.RData")
 
 #Rename the object because 16S and ITS physeq have the same name coming out of the same pre-processing workflow.
-physeq_16S <- final_physeq
+physeq_16S <- PERFect_physeq
 
-load(file = "Data_ITS/final_physeq.RData")
-physeq_ITS <- final_physeq
+load(file = "Data_ITS/PERFect_physeq.RData")
+physeq_ITS <- PERFect_physeq
 
 #Delete the object to keep just two phyloseq objects
-rm(final_physeq)
+rm(PERFect_physeq)
 ```
 
 ### Prepare data frames for compositional plots
@@ -131,69 +131,52 @@ genus_16S_oj <- filt_16S_oj %>%
 unique(genus_16S_oj$Genus)
 ```
 
+# Set up color palette
+```{r}
+brewerPlus <- distinct_palette(pal = "brewerPlus")
+scales::show_col(brewerPlus)
+
+names(brewerPlus) <- unique(genus_16S_oj$Genus)
+# Change 'Others' to grey
+brewerPlus["Others"] <- "grey"
+```
+
+'Wrap' some treatment names that are too long
+```{r}
+Treatment_labs <- c("No Treatment",               "Pasteurization",          
+"Pasteurization + \n SB + PS",
+"Pasteurization + \n DMDC + NG",
+"HPP", "HPP \n + DMDC + NG",           
+"UV") 
+names(Treatment_labs) <- c("No Treatment",               "Pasteurization",          
+"Pasteurization + SB + PS",
+"Pasteurization + DMDC + NG",
+"HPP", "HPP + DMDC + NG",           
+"UV") 
+```
 Now we are ready to plot
 Bacterial communities in orange juice
 ```{r}
-ggplot(genus_16S_oj)+
+OJ_16S_compbar <- ggplot(genus_16S_oj)+
   geom_col(mapping = aes(x = Shelf_Life_Stage, y = RelAb, fill = Genus), color = "black", position = "stack", show.legend = TRUE)+
-  facet_grid(cols = vars(Treatment), rows = vars(Trial))+
+  facet_grid(cols = vars(Treatment), rows = vars(Trial), labeller = labeller(Treatment = Treatment_labs))+
   ylab("Relative Abundance") +
   xlab(NULL)+
-  #scale_fill_manual(values = genus_colors) +
-  theme_linedraw()+
-  theme(axis.text.y = element_text(size = 20, color = "black"),
-        axis.title.y = element_text(size = 18, color = "black"),
-        axis.text.x = element_text(size = 20, angle = 90, vjust = 1, hjust = 0.5, color = "black"),
-        legend.text = element_text(size = 13, face = "italic"),
+  scale_fill_manual(values = brewerPlus) +
+  theme_pubr()+
+  theme(axis.text.y = element_text(size = 16, color = "black"),
+        axis.title.y = element_text(size = 16, color = "black", face = "bold"),
+        axis.text.x = element_text(size = 14, angle = 90, vjust = 1, hjust = 0.5, color = "black"),
+        legend.text = element_text(size = 12, face = "italic"),
         legend.position = "bottom",
         legend.spacing.x = unit(0.1, 'mm'),
         legend.spacing.y = unit(0.05, 'mm'),
         plot.margin=grid::unit(c(0.1,0.1,0.1,0.1), "mm"),
         strip.text = element_text(face = "bold", angle = 0),
-        legend.title = element_text(face="bold", size = 22))+
-  guides(fill=guide_legend(ncol=4,byrow =FALSE))
-```
-Bacterial communities in cider
-```{r}
-genus_16S_cd <- filt_16S_cd %>%
-  select(Treatment, Trial, Shelf_Life_Stage, Spoilage, Genus, Abundance) %>%
-  group_by(Treatment, Shelf_Life_Stage, Trial) %>%
-  mutate(totalSum = sum(Abundance)) %>%
-  ungroup() %>%
-  group_by(Treatment, Shelf_Life_Stage, Trial, Genus, totalSum) %>%
-  summarise(
-    Abundance = sum(Abundance),
-    Genus = ifelse(Abundance < 0.05, "Others", Genus)) %>%
-  group_by(Treatment, Shelf_Life_Stage, Trial, Genus, totalSum) %>%  
-# now group and summarize again to group newly labeled low abundance taxa together
-  summarise(
-    Abundance = sum(Abundance),
-    RelAb = Abundance/totalSum) %>%
-  unique()
-# Now we are down to 20 genera (including "Others")
-unique(genus_16S_cd$Genus)
+        legend.title = element_text(face="bold", size = 14))+
+  guides(fill=guide_legend(ncol=3))
 ```
 
-```{r}
-ggplot(genus_16S_cd)+
-  geom_col(mapping = aes(x = Shelf_Life_Stage, y = RelAb, fill = Genus), color = "black", position = "stack", show.legend = TRUE)+
-  facet_grid(cols = vars(Treatment), rows = vars(Trial))+
-  ylab("Relative Abundance") +
-  xlab(NULL)+
-  #scale_fill_manual(values = genus_colors) +
-  theme_linedraw()+
-  theme(axis.text.y = element_text(size = 20, color = "black"),
-        axis.title.y = element_text(size = 18, color = "black"),
-        axis.text.x = element_text(size = 20, angle = 90, vjust = 1, hjust = 0.5, color = "black"),
-        legend.text = element_text(size = 13, face = "italic"),
-        legend.position = "bottom",
-        legend.spacing.x = unit(0.1, 'mm'),
-        legend.spacing.y = unit(0.05, 'mm'),
-        plot.margin=grid::unit(c(0.1,0.1,0.1,0.1), "mm"),
-        strip.text = element_text(face = "bold", angle = 0),
-        legend.title = element_text(face="bold", size = 22))+
-  guides(fill=guide_legend(ncol=4,byrow =FALSE))
-```
 Fungal communities in orange juice
 ```{r}
 genus_ITS_oj <- filt_ITS_oj %>%
@@ -216,25 +199,90 @@ unique(genus_ITS_oj$Genus)
 ```
 
 ```{r}
-ggplot(genus_ITS_oj)+
+kelly <- microViz::distinct_palette(pal = "kelly", add = "chartreuse")
+kelly <- append(kelly,"deeppink1")
+names(kelly) <- unique(genus_ITS_oj$Genus)
+# Assign grey to 'Others'
+kelly["Others"] <- "lightgrey"
+
+OJ_ITS_compbar <- ggplot(genus_ITS_oj)+
   geom_col(mapping = aes(x = Shelf_Life_Stage, y = RelAb, fill = Genus), color = "black", position = "stack", show.legend = TRUE)+
-  facet_grid(cols = vars(Treatment), rows = vars(Trial))+
+  facet_grid(cols = vars(Treatment), rows = vars(Trial), labeller = labeller(Treatment = Treatment_labs))+
   ylab("Relative Abundance") +
   xlab(NULL)+
-  #scale_fill_manual(values = genus_colors) +
-  theme_linedraw()+
-  theme(axis.text.y = element_text(size = 20, color = "black"),
-        axis.title.y = element_text(size = 18, color = "black"),
-        axis.text.x = element_text(size = 20, angle = 90, vjust = 1, hjust = 0.5, color = "black"),
+  scale_fill_manual(values = kelly) +
+  theme_pubr()+
+  theme(axis.text.y = element_text(size = 16, color = "black"),
+        axis.title.y = element_text(size = 16, color = "black", face = "bold"),
+        axis.text.x = element_text(size = 14, angle = 90, vjust = 1, hjust = 0.5, color = "black"),
+        legend.text = element_text(size = 12, face = "italic"),
+        legend.position = "bottom",
+        legend.spacing.x = unit(0.1, 'mm'),
+        legend.spacing.y = unit(0.05, 'mm'),
+        plot.margin=grid::unit(c(0.1,0.1,0.1,0.1), "mm"),
+        strip.text = element_text(face = "bold", angle = 0),
+        legend.title = element_text(face="bold", size = 14))+
+  guides(fill=guide_legend(ncol=3))
+```
+
+Display the combined 16S and ITS plot for OJ
+```{r}
+ggarrange(OJ_16S_compbar, OJ_ITS_compbar, nrow = 1, labels = "AUTO")
+
+```
+Save plot
+```{r eval=FALSE, include=FALSE}
+ggsave("Figure/OJ_compositional.png", device = "png", height = 9, width = 13, units = "in")
+
+```
+Bacterial communities in cider
+```{r}
+genus_16S_cd <- filt_16S_cd %>%
+  select(Treatment, Trial, Shelf_Life_Stage, Spoilage, Genus, Abundance) %>%
+  group_by(Treatment, Shelf_Life_Stage, Trial) %>%
+  mutate(totalSum = sum(Abundance)) %>%
+  ungroup() %>%
+  group_by(Treatment, Shelf_Life_Stage, Trial, Genus, totalSum) %>%
+  summarise(
+    Abundance = sum(Abundance),
+    Genus = ifelse(Abundance < 0.05, "Others", Genus)) %>%
+  group_by(Treatment, Shelf_Life_Stage, Trial, Genus, totalSum) %>%  
+# now group and summarize again to group newly labeled low abundance taxa together
+  summarise(
+    Abundance = sum(Abundance),
+    RelAb = Abundance/totalSum) %>%
+  unique()
+# Now we are down to 20 genera (including "Others")
+unique(genus_16S_cd$Genus)
+genus_16S_cd$Genus = gsub("Methylobacterium-Methylorubrum", "Methylobacterium- \n Methylorubrum", genus_16S_cd$Genus)
+```
+
+```{r}
+brewerPlus <- microViz::distinct_palette(pal = "brewerPlus", add = NA)
+names(brewerPlus) <- unique(genus_16S_cd$Genus)
+# Change 'Others' to grey
+brewerPlus["Others"] <- "grey"
+
+CD_16S_compbar <- ggplot(genus_16S_cd)+
+  geom_col(mapping = aes(x = Shelf_Life_Stage, y = RelAb, fill = Genus), color = "black", position = "stack", show.legend = TRUE)+
+  facet_grid(cols = vars(Treatment), rows = vars(Trial), labeller = labeller(Treatment = Treatment_labs))+
+  ylab("Relative Abundance") +
+  xlab(NULL)+
+  scale_fill_manual(values = brewerPlus) +
+  theme_pubr()+
+  theme(axis.text.y = element_text(size = 18, color = "black"),
+        axis.title.y = element_text(size = 18, color = "black", face = "bold"),
+        axis.text.x = element_text(size = 18, angle = 90, vjust = 1, hjust = 0.5, color = "black"),
         legend.text = element_text(size = 13, face = "italic"),
         legend.position = "bottom",
         legend.spacing.x = unit(0.1, 'mm'),
         legend.spacing.y = unit(0.05, 'mm'),
         plot.margin=grid::unit(c(0.1,0.1,0.1,0.1), "mm"),
         strip.text = element_text(face = "bold", angle = 0),
-        legend.title = element_text(face="bold", size = 22))+
-  guides(fill=guide_legend(ncol=4,byrow =FALSE))
+        legend.title = element_text(face="bold", size = 18))+
+  guides(fill=guide_legend(ncol=3))
 ```
+
 Fungal communities in cider
 ```{r}
 genus_ITS_cd <- filt_ITS_cd %>%
@@ -257,22 +305,37 @@ unique(genus_ITS_cd$Genus)
 ```
 
 ```{r}
+kelly <- microViz::distinct_palette(pal = "kelly")
+names(kelly) <- unique(genus_ITS_cd$Genus)
+kelly["Others"] <- "lightgrey"
+
+CD_ITS_compbar <-
 ggplot(genus_ITS_cd)+
   geom_col(mapping = aes(x = Shelf_Life_Stage, y = RelAb, fill = Genus), color = "black", position = "stack", show.legend = TRUE)+
-  facet_grid(cols = vars(Treatment), rows = vars(Trial))+
+  facet_grid(cols = vars(Treatment), rows = vars(Trial), labeller = labeller(Treatment = Treatment_labs))+
   ylab("Relative Abundance") +
   xlab(NULL)+
-  #scale_fill_manual(values = genus_colors) +
-  theme_linedraw()+
-  theme(axis.text.y = element_text(size = 20, color = "black"),
-        axis.title.y = element_text(size = 18, color = "black"),
-        axis.text.x = element_text(size = 20, angle = 90, vjust = 1, hjust = 0.5, color = "black"),
+  scale_fill_manual(values = kelly) +
+  theme_pubr()+
+  theme(axis.text.y = element_text(size = 18, color = "black"),
+        axis.title.y = element_text(size = 18, color = "black", face = "bold"),
+        axis.text.x = element_text(size = 18, angle = 90, vjust = 1, hjust = 0.5, color = "black"),
         legend.text = element_text(size = 13, face = "italic"),
         legend.position = "bottom",
         legend.spacing.x = unit(0.1, 'mm'),
         legend.spacing.y = unit(0.05, 'mm'),
         plot.margin=grid::unit(c(0.1,0.1,0.1,0.1), "mm"),
         strip.text = element_text(face = "bold", angle = 0),
-        legend.title = element_text(face="bold", size = 22))+
-  guides(fill=guide_legend(ncol=4,byrow =FALSE))
+        legend.title = element_text(face="bold", size = 18))+
+  guides(fill=guide_legend(ncol=3))
+```
+
+```{r}
+ggarrange(CD_16S_compbar, CD_ITS_compbar, ncol = 2, labels = "AUTO")
+
+```
+Save plot
+```{r eval=FALSE, include=FALSE}
+ggsave("Figure/CD_compositional.png", device = "png", height = 9, width = 13, units = "in")
+
 ```
