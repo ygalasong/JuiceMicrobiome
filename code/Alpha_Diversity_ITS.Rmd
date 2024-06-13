@@ -52,7 +52,14 @@ metadata <- PERFect_physeq@sam_data %>% data.frame() %>%
     (Treatment == "Pasteurization + DMDC + NG")~"Thermal",
     (Treatment == "Pasteurization + SB + PS")~"Thermal",
     (Treatment == "UV")~"Non-thermal",
-    (Treatment == "No Treatment")~"No Treatment"))
+    (Treatment == "No Treatment")~"No Treatment")) %>%
+  mutate(Tech = case_when(
+  Treatment == "Pasteurization" |
+    Treatment == "Pasteurization + DMDC + NG" |
+    Treatment == "Pasteurization + SB + PS" ~ "Pasteurization",
+  Treatment == "HPP" | 
+    Treatment == "HPP + DMDC + NG" ~ "HPP",
+  .default = "Untreated & UV")) %>% mutate (Tech = as.factor(Tech))
 
 metadata_oj <- metadata %>% filter(Beverage == "Orange Juice")
 
@@ -64,15 +71,6 @@ div_iNEXT_oj <- iNEXT_output_oj$AsyEst %>%
 
 #### Species richness over shelf-life
 ```{r}
-# Plot Richness over Stage of Shelf-Life, points colored based on 'Treatment', shaped by 'Thermal'
-div_iNEXT_oj %>% filter(Diversity == "Species richness") %>%
-  ggplot(aes(x = Shelf_Life_Stage, y = Observed))+
-  geom_point(aes(color = Treatment, shape = Thermal), size = 4, alpha = 0.75)+
-  scale_color_manual(values = Treatment_color)+
-  theme_classic() + labs(x = "Stage in Shelf-life", y = "Species Richness")+
-  theme(axis.text = element_text(size = 12),
-        axis.title = element_text(size = 14),
-        legend.text = element_text(size = 12))
 
 # Plot Richness over time, points colored based on 'Treatment'
 div_iNEXT_oj %>% filter(Diversity == "Species richness") %>%
@@ -133,7 +131,7 @@ obs_rich_oj %>%
        y = "Species richness", 
        color = "Stage in Shelf Life",
        fill = "Stage in Shelf Life")+
-  facet_grid(.~Thermal)+ stat_kruskal_test()+
+  facet_grid(.~Tech)+ stat_kruskal_test()+
   #theme(axis.text.x = element_text(angle = 45))
   theme_pubr()
 
@@ -143,15 +141,15 @@ oj_richness <- obs_rich_oj %>%
   geom_boxplot(aes(color = "black",fill = Spoilage), 
                outlier.shape = NA)+ 
   scale_fill_manual(values = Spoiled_color)+
-  guides(fill = FALSE)+
-  geom_jitter(aes(color = Treatment),size = 2.5)+
+  guides(fill = "none")+
+  geom_jitter(size = 2.5)+
   scale_color_manual(values = Treatment_color,
                      name = "Treatment")+
   labs(x = NULL, y = "Species richness")+
-  facet_grid(.~Thermal)+ 
+  facet_grid(.~Tech)+ 
   stat_kruskal_test(label.y = 50)+
   #theme(axis.text.x = element_text(angle = 45))+
-  theme_pubr(legend = "right")
+  theme_pubr(legend = "none")
 ```
 
 ### Shannon index for species evenness
@@ -161,11 +159,10 @@ oj_shannon <-div_iNEXT_oj %>%
   ggplot(aes(x = Spoilage, y = Observed, fill = Spoilage))+
   geom_boxplot(alpha = 0.75, outlier.shape = NA) + 
   guides(fill = FALSE)+
-  geom_jitter(aes(color = Treatment),size = 2.5)+
-  scale_color_manual(values = Treatment_color)+
+  geom_jitter(colour = "black",size = 2.5)+
   scale_fill_manual(values = Spoiled_color)+
   theme_classic()+labs(x= NULL, y = "Shannon diversity")+
-  facet_grid(.~Thermal)+ 
+  facet_grid(.~Tech)+ 
   stat_kruskal_test(label.y = 21)+
   theme_pubr(legend = "right")
 ```
@@ -174,19 +171,49 @@ oj_shannon <-div_iNEXT_oj %>%
 ```{r}
  oj_simpson <- div_iNEXT_oj %>%
   filter(Diversity == "Simpson diversity") %>%
-  ggplot(aes(x = Spoilage, y = Observed, fill = Spoilage))+
+  ggplot(aes(x = Tech, y = Observed))+
   geom_boxplot(alpha = 0.75, outlier.shape = NA) + 
   guides(fill = FALSE)+
   geom_jitter(aes(color = Treatment),size = 2.5)+
   scale_color_manual(values = Treatment_color)+
   scale_fill_manual(values = Spoiled_color)+
   theme_classic()+labs(x = NULL, y = "Simpson diversity")+
-  facet_grid(.~Thermal)+ 
+  facet_grid(.~Shelf_Life_Stage)+
   theme(legend.position = "bottom")+
   stat_kruskal_test(label.y = 15)+
-  theme_pubr(legend = "right")
+  theme_pubr(legend = "bottom")
 
 ```
+
+```{r}
+dunn.test.its.oj <- div_iNEXT_oj_its %>% group_by(Diversity) %>%
+  dunn_test(Observed ~ Tech)
+dunn.test.its.oj$p.format <- p_format(dunn.test.its.oj$p.adj, accuracy = 0.01)
+
+
+```
+
+```{r}
+alpha_OJ_ITS <- div_iNEXT_oj_its %>%
+  mutate(Diversity = 
+           factor(Diversity, 
+                  levels = c("Species richness",
+                             "Shannon diversity",
+                             "Simpson diversity"))) %>%
+  ggplot(aes(x = Tech, y = Observed, color = Treatment, group = Tech))+
+  geom_point(alpha = 0.8, size = 3)+
+  scale_color_manual(values = Treatment_color)+
+  labs(x = NULL, y = "Value")+
+  facet_grid(.~Diversity)+
+  theme_pubr(legend = "none")+
+  theme(axis.text.x = element_text(size = 10, angle = 90))+
+  stat_pvalue_manual(dunn.test.its.oj, y.position = c(50,55,60), 
+                     label = "p.format")
+
+```
+
+
+
 ### Combining Shannon and Simpson Diversity Plots
 ```{r}
 ggpubr::ggarrange(oj_richness, oj_shannon, oj_simpson,
@@ -311,6 +338,31 @@ ggpubr::ggarrange(rarefaction_curve_oj, rarefaction_curve_cd,
                   labels = c("OJ (ITS)", "Cider (ITS)"))
 ```
 
+```{r}
+dunn.test.its.cd <- div_iNEXT_cd_its %>% group_by(Diversity) %>%
+  dunn_test(Observed ~ Tech)
+dunn.test.its.cd$p.format <- p_format(dunn.test.its.cd$p.adj, accuracy = 0.01)
+```
+
+```{r}
+alpha_cd_ITS <- div_iNEXT_cd_its %>%
+  mutate(Diversity = 
+           factor(Diversity, 
+                  levels = c("Species richness",
+                             "Shannon diversity",
+                             "Simpson diversity"))) %>%
+  ggplot(aes(x = Tech, y = Observed, color = Treatment, group = Tech))+
+  geom_point(alpha = 0.8, size = 3)+
+  scale_color_manual(values = Treatment_color)+
+  labs(x = NULL, y = "Value")+
+  facet_grid(.~Diversity)+
+  theme_pubr(legend = "none")+
+  theme(axis.text.x = element_text(size = 10, angle = 90))+
+  stat_pvalue_manual(dunn.test.its.cd, y.position = c(80,90,100), 
+                     label = "p.format")
+
+```
+
 ### Diversity boxplot
 ```{r}
 # Diversity in apple cider
@@ -409,6 +461,28 @@ cd_shannon <-div_iNEXT_cd %>%
   theme_pubr(legend = "right")
 
 ```
+
+
+```{r}
+alpha_CD_ITS <- div_iNEXT_cd %>%
+  mutate(Diversity = 
+           factor(Diversity, 
+                  levels = c("Species richness",
+                             "Shannon diversity",
+                             "Simpson diversity"))) %>%
+  ggplot(aes(x = Tech, y = Observed))+
+  geom_boxplot(alpha = 0.75, outlier.shape = NA) + 
+  guides(fill = FALSE)+
+  geom_jitter(aes(color = Treatment),size = 2.5)+
+  scale_color_manual(values = Treatment_color)+
+  theme_classic()+labs(x = NULL, y = "Value")+
+  facet_grid(Trial~Diversity)+
+  stat_kruskal_test(label.y = 60)+
+  theme_pubr(legend = "bottom")
+
+```
+
+
 ### Combining Shannon and Simpson Diversity Plots
 ```{r}
 ggpubr::ggarrange(cd_richness, cd_shannon, cd_simpson,

@@ -120,13 +120,16 @@ microbiome studies.
 #### Load the data and modify to the format required by 'tempted' package
 
 ```{r}
-load("/local/workdir/yg225/JuiceMicrobiome/Data_ITS/metadata.RData")
 #load("/local/workdir/yg225/JuiceMicrobiome/Data_ITS/final_physeq.RData")
 load("/local/workdir/yg225/JuiceMicrobiome/Data_ITS/PERFect_physeq.RData")
+
+metadata <- PERFect_physeq %>% sample_data() %>% data.frame() %>% rownames_to_column(var = "Assemblage")
+
 # A data.frame with rows representing samples and matching with data.frame count table and processed table
 ## Create a unique ID for each (juice, treatment) combination
 ID_df <- metadata %>% expand(Beverage, Treatment, Trial) %>% 
   mutate(JuiceID = seq(from = 1, to = nrow(.)))
+
 
 metatable <- metadata %>% 
   # remove irrelevant columns
@@ -159,7 +162,7 @@ metatable <- metatable[-zero, ]
 table(rownames(counttable) == rownames(metatable))
 
 # A variable storing ID and Treatment
-metauni <- unique(metatable[,c("JuiceID","Beverage","Treatment","Trial","Thermal","Tech")])
+metauni <- unique(metatable[,c("JuiceID","Beverage","Treatment","Trial","Tech")])
 ```
 
 #### Run TEMPTED for Microbiome Count Data
@@ -227,8 +230,8 @@ A_data_oj <- cbind(res_count_oj$A_hat[rownames(A_data_oj),],A_data_oj)
 
 # Plot of subject loading
 p_oj <- A_data_oj %>% 
-  ggplot(aes(x = A_data_oj$PC1, y = A_data_oj$PC2))+
-  geom_point(aes(color = Trial, shape = Thermal), size = 4)+ 
+  ggplot(aes(x = PC1, y = PC2))+
+  geom_point(aes(color = Trial, shape = Tech), size = 4)+ 
   labs(x = "Component 1", y = "Component 2",
        title = "Subject loadings")+
   scale_color_manual(values = Trial_color)+ 
@@ -243,15 +246,15 @@ Clearly, the beta diversity is driven by Trial, i.e. the source of the juice.We 
 
 ```{r}
 # Plot of subject loading
-p_oj2 <- A_data_oj %>% ggplot(aes(x = A_data_oj$PC1, y = A_data_oj$PC2))+
-  geom_point(aes(color = Thermal, shape = Trial), size = 4)+ 
+p_oj2 <- A_data_oj %>% ggplot(aes(x = PC1, y = PC2))+
+  geom_point(aes(color = Tech, shape = Trial), size = 4)+ 
   labs(x = "Component 1", 
        y = "Component 2",
        title = "Subject loadings")+
-  scale_color_manual(values = Thermal_color)+
-  geom_mark_ellipse(aes(fill = Thermal), alpha = 0.15,
+  scale_color_manual(values = Tech_color)+
+  geom_mark_ellipse(aes(fill = Tech), alpha = 0.15,
                           expand = unit(2, "mm"))+
-  scale_fill_manual(values = Thermal_color)+
+  scale_fill_manual(values = Tech_color)+
   scale_y_continuous(limits = c(-0.4,0.6))+
   scale_x_continuous(limits = c(-0.4,0.6))+
   theme_pubr(legend = "right")
@@ -263,8 +266,7 @@ p_oj2 <- A_data_oj %>% ggplot(aes(x = A_data_oj$PC1, y = A_data_oj$PC2))+
 p_oj_min1 <- A_data_oj %>% 
   ggplot(aes(x = PC1, y = PC2))+
   geom_point(aes(color = Trial), size = 4)+
-  labs(x = "Component 1", y = "Component 2",
-  title = "Subject loadings \n colored by Trial")+
+  labs(x = "Component 1", y = "Component 2")+
   scale_color_manual(values = Trial_color)+
   theme_pubr()
 
@@ -282,8 +284,7 @@ p_oj_min3 <- A_data_oj %>%
   geom_point(aes(color = Tech), size = 4)+
   labs( x = "Component 2",
         y = "Component 3",
-        title = "Subject loadings \n colored by technology",
-        color = "Technology")+
+        color = "Treatment")+
   scale_color_manual(values = Tech_color)+
   theme_pubr()
 
@@ -307,11 +308,11 @@ scale_fill_manual(values = Trial_color)+
 Accent, Dark2, Paired, Pastel1, Pastel2, Set1, Set2, Set3
 ```{r}
 # Temporal loadings are stored in Phi_hat in res_count
-tempted::plot_time_loading(res_count_oj, r = 3)+
+temporal_oj <- tempted::plot_time_loading(res_count_oj, r = 3)+
   geom_line(aes(color = component),
             linewidth = 2)+
-  scale_color_brewer(palette = "Paired")+
-  labs(title = "Temporal Loadings", x = "Time in shelf-life (Days)")+
+  scale_color_brewer(palette = "Accent")+
+  labs(x = "Day")+
   theme_pubr()
 
 ```
@@ -339,10 +340,10 @@ res_count_oj$B_hat %>% as.data.frame() %>%
 ```{r}
 # Log ratios are stored in metafeature_ration in res_count
 # For grouping variable, subset the JuiceID, a desired column
-tempted::plot_metafeature(res_count_oj$metafeature_ratio, 
-                          metauni[,c(1,6)],nrow = 2) + 
+topfeat_oj <- tempted::plot_metafeature(res_count_oj$metafeature_ratio, 
+                          metauni[,c(1,5)],nrow = 3) + 
   geom_line()+
-  xlab("Days in shelf-life")+theme_pubr()+
+  xlab("Day")+theme_pubr()+
   scale_color_manual(values = Tech_color, name = "Treatment")+
   scale_fill_manual(values = Tech_color, name = "Treatment")
 
@@ -361,7 +362,13 @@ tempted::plot_metafeature(res_count_oj$metafeature_aggregate, metauni[,c(1,3)],n
   theme_pubr(legend = "bottom")
 
 ```
+Putting together plots in 1 figure
+```{r}
+trial_legend <- get_legend(p_oj_min1)
+tech_legend <- get_legend(p_oj_min3)
 
+TEMPTED_ITS_OJ <- ggarrange(ggarrange(temporal_oj, ggarrange(p_oj_min1, p_oj_min3, ncol = 2, legend.grob = trial_legend, legend = "bottom"), nrow = 2, labels = c("A","B"), legend = "top"), topfeat_oj, ncol = 2, labels = c("","C"), legend.grob = tech_legend, legend = "bottom")
+```
 #### Low-dimensional representation of SAMPLES
 
 ```{r}
@@ -416,6 +423,7 @@ reshape_feat_obs_oj %>%
 
 Trajectory of Top features Component 1
 ```{r}
+proportion_table_oj <- counttable_oj/rowSums(counttable_oj)
 # Extract feature loadings from TEMPTED output
 f_loadings_oj <- data.frame(res_count_oj$B_hat)
 
@@ -500,6 +508,20 @@ plot_feature_summary(proportion_table_oj[,top_abs_PC2_oj],
          fill = guide_legend(title = "Treatment"))+
   theme_pubr()
 
+plot_feature_summary(proportion_table_oj[,top_abs_PC2_oj], 
+                     metatable_oj$Day, 
+                     metatable_oj$Trial, 
+                     bws=30, nrow = 4) + 
+  labs(x="Day of Shelf-Life", y="Relative Abundance")+
+  scale_fill_manual(values = Trial_color)+
+  scale_color_manual(values = Trial_color)+
+  facet_wrap(vars(feature_all), nrow = 4, 
+             scales = "free_y", labeller = 
+               labeller(feature_all = top_abs_PC2_oj_labs))+
+  guides(color = guide_legend(title = "Trial"),
+         fill = guide_legend(title = "Trial"))+
+  theme_pubr()
+
 ```
 
 Trajectory of Top features Component 3
@@ -562,24 +584,35 @@ plot_feature_summary(proportion_table_oj[,top_abs_PC3_oj],
          fill = guide_legend(title = "Treatment"))+
   theme_pubr()
 
+plot_feature_summary(proportion_table_oj[,top_abs_PC3_oj], 
+                     metatable_oj$Day, 
+                     metatable_oj$Spoilage, 
+                     bws=30, nrow = 4) + 
+  labs(x="Day of Shelf-Life", y="Relative Abundance")+
+  scale_fill_manual(values = Spoiled_color)+
+  scale_color_manual(values = Spoiled_color)+
+  facet_wrap(vars(feature_all), nrow = 4, 
+             scales = "free_y", labeller = 
+               labeller(feature_all = top_abs_PC3_oj_labs))+
+  guides(color = guide_legend(title = "Trial"),
+         fill = guide_legend(title = "Trial"))+
+  theme_pubr()
 
 ```
 This code below plots the summary plot of a single or a few ASV
 ```{r}
-plot_feature_summary(proportion_table_oj %>% 
-                       select(ASV_3, ASV_15, ASV_48), 
+comp3_PPCs <- plot_feature_summary(proportion_table_oj %>% 
+                       select(ASV_1, ASV_4, ASV_3, ASV_15, ASV_47, ASV_48), 
                      metatable_oj$Day, 
-                     metatable_oj$Treatment, 
+                     metatable_oj$Tech, 
                      bws=30, nrow = 3) + 
-  labs(x="Day of Shelf-Life", y="Relative Abundance")+
-  scale_fill_manual(values = Treatment_color)+
-  scale_color_manual(values = Treatment_color)+
+  labs(x="Day", y="Relative Abundance")+
+  scale_fill_manual(values = Tech_color)+
+  scale_color_manual(values = Tech_color)+
   facet_wrap(vars(feature_all), nrow = 3, 
              scales = "free_y", labeller = 
                labeller(feature_all = top_abs_PC1_oj_labs))+
-  guides(color = guide_legend(title = "Treatment"),
-         fill = guide_legend(title = "Treatment"))+
-  theme_pubr()
+  theme_pubr(legend = "none")
 
 ```
 ### Cider data set
@@ -629,8 +662,8 @@ A_data_cd <- cbind(res_count_cd$A_hat[rownames(A_data_cd),],A_data_cd)
 
 # Plot of subject loading
 p_cd <- A_data_cd %>% 
-  ggplot(aes(x = A_data_cd$PC1, y = A_data_cd$PC2))+
-  geom_point(aes(shape = Thermal, color = Treatment), 
+  ggplot(aes(x = PC1, y = PC2))+
+  geom_point(aes(shape = Tech, color = Treatment), 
              size = 4)+ labs(x = "Component 1", y = "Component 2",
                                      title = "Subject loadings")+
   scale_color_manual(values = Treatment_color)
@@ -646,16 +679,16 @@ juice.Unlike in orange juice, cider samples don't seem to form thermal Vs non-th
 
 ```{r}
 # Plot of subject loading
-p_cd2 <- A_data_cd %>% ggplot(aes(x = A_data_cd$PC1, y = A_data_cd$PC2))+
-  geom_point(aes(shape = Thermal, color = Treatment), size = 4)+ 
+p_cd2 <- A_data_cd %>% ggplot(aes(x = PC1, y = PC2))+
+  geom_point(aes(shape = Tech, color = Treatment), size = 4)+ 
   labs(x = "Component 1", 
        y = "Component 2",
        title = "Subject loadings")+
   scale_color_manual(values = Treatment_color)
 
-p_cd2 + geom_mark_ellipse(aes(fill = Thermal), alpha = 0.15,
+p_cd2 + geom_mark_ellipse(aes(fill = Tech), alpha = 0.15,
                           expand = unit(0, "mm"))+
-  scale_fill_manual(values = Thermal_color)+
+  scale_fill_manual(values = Tech_color)+
   scale_y_continuous(limits = c(-0.4,0.8))+
   scale_x_continuous(limits = c(-0.6,0.6))+
   theme_classic()
@@ -666,16 +699,14 @@ p_cd2 + geom_mark_ellipse(aes(fill = Thermal), alpha = 0.15,
 p_cd_min1 <- A_data_cd %>% 
   ggplot(aes(x = PC1, y = PC2))+
   geom_point(aes(color = Trial), size = 4)+
-  labs(x = "Component 1", y = "Component 2",
-  title = "Subject loadings \n colored by Trial")+
+  labs(x = "Component 1", y = "Component 2")+
   scale_color_manual(values = Trial_color)+
   theme_pubr()
 
 p_cd_min2 <- A_data_cd %>% 
   ggplot(aes(x = PC2, y = PC3))+
   geom_point(aes(color = Trial), size = 4)+
-  labs(x = "Component 2", y = "Component 3",
-  title = "Subject loadings \n colored by Trial")+
+  labs(x = "Component 2", y = "Component 3")+
   scale_color_manual(values = Trial_color)+
   theme_pubr()
   
@@ -683,21 +714,20 @@ p_cd_min2 <- A_data_cd %>%
 p_cd_min3 <- A_data_cd %>% 
   ggplot(aes(x = PC2, y = PC3))+
   geom_point(aes(color = Tech), size = 4)+
-  labs(x = "Component 2", y = "Component 3",
-  title = "Subject loadings \n colored by Technology")+
+  labs(x = "Component 2", y = "Component 3")+
   scale_color_manual(values = Tech_color)+
   theme_pubr()
-ggarrange(p_cd_min1, p_cd_min2, legend = "bottom")
+ggarrange(p_cd_min1, p_cd_min3, legend = "bottom")
 
 ```
 #### Temporal loadings
 
 ```{r}
 # Temporal loadings are stored in Phi_hat in res_count
-tempted::plot_time_loading(res_count_cd, r = 3)+
+temporal_cd <- tempted::plot_time_loading(res_count_cd, r = 3)+
   geom_line(linewidth = 2)+
   scale_color_brewer(type = "qual")+
-  labs(title = "Temporal Loadings", x = "Time in shelf-life (Days)")+
+  labs(x = "Day")+
   theme_pubr()
 
 ```
@@ -724,12 +754,11 @@ res_count_cd$B_hat %>% as.data.frame() %>%
 ```{r}
 # Log ratios are stored in metafeature_ration in res_count
 # For grouping variable, subset the JuiceID, a desired column
-tempted::plot_metafeature(res_count_cd$metafeature_ratio, 
-                          metauni[,c(1,4)],nrow = 2) + 
-  geom_line(color = "black")+
-  xlab("Days in shelf-life")+theme_pubr()+
-  scale_color_manual(values = Trial_color, name = "Treatment")+
-  scale_fill_manual(values = Trial_color, name = "Treatment")
+topfeat_cd <- tempted::plot_metafeature(res_count_cd$metafeature_ratio, 
+                          metauni[,c(1,5)],nrow = 3) + 
+  xlab("Day")+theme_pubr()+
+  scale_color_manual(values = Tech_color, name = "Treatment")+
+  scale_fill_manual(values = Tech_color, name = "Treatment")
 ```
 
 #### Subject trajectories
@@ -772,6 +801,14 @@ reshape_feat_obs_cd %>%
 
 ```
 
+combine TEMPTED results
+```{r}
+trial_legend <- get_legend(p_cd_min1)
+tech_legend <- get_legend(p_cd_min3)
+
+TEMPTED_ITS_cd <- ggarrange(ggarrange(temporal_cd, ggarrange(p_cd_min1, p_cd_min3, ncol = 2, legend.grob = trial_legend, legend = "bottom"), nrow = 2, labels = c("A","B"), legend = "top"), topfeat_cd, ncol = 2, labels = c("","C"), legend.grob = tech_legend, legend = "bottom")
+
+```
 This plot below shows that we cannot distinguish spoiled vs not spoiled
 
 ```{r}
@@ -902,6 +939,21 @@ p_topfeat_cd_PC2 <- ggplot(data=tab_sel_feat_cd_PC2) +
 
 p_topfeat_summary_cd_PC2 <- plot_feature_summary(proportion_table_cd[,top_abs_PC2_cd], 
                      metatable_cd$Day, 
+                     metatable_cd$Trial, 
+                     bws=30, nrow = 4) + 
+  labs(x="Day of Shelf-Life",
+       y="Relative Abundance")+
+    scale_fill_manual(values = Trial_color)+
+  scale_color_manual(values = Trial_color)+
+  facet_wrap(vars(feature_all), nrow = 4, 
+             scales = "free_y", labeller = 
+               labeller(feature_all = top_abs_PC2_cd_labs))+
+  guides(color = guide_legend(title = "Trial"),
+         fill = guide_legend(title = "Trial"))+
+  theme_pubr()
+
+plot_feature_summary(proportion_table_cd[,top_abs_PC2_cd], 
+                     metatable_cd$Day, 
                      metatable_cd$Tech, 
                      bws=30, nrow = 4) + 
   labs(x="Day of Shelf-Life",
@@ -911,8 +963,8 @@ p_topfeat_summary_cd_PC2 <- plot_feature_summary(proportion_table_cd[,top_abs_PC
   facet_wrap(vars(feature_all), nrow = 4, 
              scales = "free_y", labeller = 
                labeller(feature_all = top_abs_PC2_cd_labs))+
-  guides(color = guide_legend(title = "Trial"),
-         fill = guide_legend(title = "Trial"))+
+  guides(color = guide_legend(title = "Treatment"),
+         fill = guide_legend(title = "Treatment"))+
   theme_pubr()
 
 ```
@@ -998,4 +1050,42 @@ plot_feature_summary(proportion_table_cd[,top_abs_PC1_cd],
          fill = guide_legend(title = "Treatment"))+
   theme_pubr()
 
+```
+
+```{r}
+pc1_highlights_cd <- plot_feature_summary(proportion_table_cd %>% 
+                       select(ASV_8, ASV_23, ASV_24, ASV_34, ASV_35,ASV_50, ASV_42), 
+                     metatable_cd$Day, 
+                     metatable_cd$Tech, 
+                     bws=30, nrow = 3) + 
+  labs(x="Day", y="Relative Abundance")+
+  scale_fill_manual(values = Tech_color)+
+  scale_color_manual(values = Tech_color)+
+  facet_wrap(vars(feature_all), nrow = 3, 
+             scales = "free_y", labeller = 
+               labeller(feature_all = top_abs_PC1_cd_labs))+
+  theme_pubr(legend = "none")
+
+pc1_mrakia <- plot_feature_summary((proportion_table_cd %>% select(ASV_23,ASV_34,ASV_42)), metatable_cd$Day, metatable_cd$Tech, bws = 30, nrow = 3)+
+  labs(x = "Day", y = "Relative Abundance")+
+  scale_fill_manual(values = Tech_color)+
+  scale_color_manual(values = Tech_color)+
+  facet_wrap(vars(feature_all), ncol = 1,
+             scales = "free_y", labeller = 
+               labeller(feature_all = top_abs_PC1_cd_labs))+theme_pubr(legend = "none")
+
+pc1_pichia <- plot_feature_summary((proportion_table_cd %>% select(ASV_8,ASV_35,ASV_50)), metatable_cd$Day, metatable_cd$Tech, bws = 30, nrow = 3)+
+  labs(x = "Day", y = "Relative Abundance")+
+  scale_fill_manual(values = Tech_color)+
+  scale_color_manual(values = Tech_color)+
+  facet_wrap(vars(feature_all), ncol = 1,
+             scales = "free_y", labeller = 
+               labeller(feature_all = top_abs_PC1_cd_labs))+theme_pubr(legend = "none")
+
+pc1_Cysto_Clado <- plot_feature_summary((proportion_table_cd %>% select(ASV_58, ASV_20, ASV_24)), metatable_cd$Day, metatable_cd$Tech, bws = 30, nrow = 3)+ labs(x = "Day", y = "Relative Abundance")+
+  scale_fill_manual(values = Tech_color)+
+  scale_color_manual(values = Tech_color)+
+  facet_wrap(vars(feature_all), ncol = 1,
+             scales = "free_y", labeller = 
+               labeller(feature_all = top_abs_PC1_cd_labs))+theme_pubr(legend = "none")
 ```

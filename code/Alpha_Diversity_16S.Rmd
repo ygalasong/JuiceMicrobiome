@@ -8,7 +8,7 @@ editor_options:
 ---
 ### Load packages
 ```{r}
-pacman::p_load(phyloseq, iNEXT, tidyverse, ggpubr, install = FALSE)
+pacman::p_load(phyloseq, iNEXT, tidyverse, ggpubr, ggsignif, install = FALSE)
 ```
 
 ### Load color and shape preferences
@@ -112,6 +112,67 @@ ggsave(filename = "Figure/rarefaction_curve_16S.png", plot =  rarefaction_curve,
 
 ```
 
+```{r}
+dunn.test.16s.oj <- div_iNEXT_oj %>% group_by(Diversity) %>% dunn_test(Observed ~ Tech)
+dunn.test.16s.oj$p.format <- p_format(dunn.test.16s.oj$p.adj, accuracy = 0.01)
+```
+
+```{r}
+alpha_oj_16S <- div_iNEXT_oj %>%
+mutate(Diversity = factor(Diversity, 
+                          levels = c("Species richness",
+                                     "Shannon diversity",
+                                     "Simpson diversity"))) %>%
+  ggplot(aes(x = Tech, y = Observed, color = Treatment, group = Tech))+
+  geom_point(alpha = 0.8, size = 3)+
+  scale_color_manual(values = Treatment_color)+
+  theme_classic()+labs(x = NULL, y = "Value")+
+  facet_grid(.~Diversity)+
+  theme_pubr(legend = "none")+theme(axis.text.x = 
+                                      element_text(size = 10, angle = 90))+
+  stat_pvalue_manual(dunn.test.16s.oj, y.position = c(150,160,170), 
+                     label = "p.format")
+```
+
+```{r}
+div_iNEXT_oj %>%
+  mutate(Diversity = 
+           factor(Diversity, 
+                  levels = c("Species richness",
+                             "Shannon diversity",
+                             "Simpson diversity"))) %>%
+  ggplot(aes(x = Tech, y = Observed, color = Treatment, group = Tech))+
+  geom_point(alpha = 0.8, size = 3)+
+  scale_color_manual(values = Treatment_color)+
+  theme_classic()+labs(x = NULL, y = "Value")+
+  facet_grid(Trial~Diversity)+
+  theme(legend.position = "bottom")+
+  stat_kruskal_test(label.y = 140)+
+  theme_pubr(legend = "bottom")
+
+```
+
+```{r}
+div_iNEXT_oj %>%
+  mutate(Diversity = 
+           factor(Diversity, 
+                  levels = c("Species richness",
+                             "Shannon diversity",
+                             "Simpson diversity"))) %>%
+  mutate(Tech = factor(Tech, levels = c("Untreated & UV",
+                                        "HPP",
+                                        "Pasteurization"),
+                       labels = c("UnUV", "HPP*","PAST")))%>%
+  ggplot(aes(x = Tech, y = Observed, color = Treatment, group = Tech))+
+  geom_point(alpha = 0.8, size = 3)+
+  scale_color_manual(values = Treatment_color)+
+  theme_classic()+labs(x = NULL, y = "Value")+
+  facet_grid(Trial~Diversity)+
+  theme(legend.position = "bottom")+
+  stat_kruskal_test(label.y = 140)+
+  theme_pubr(legend = "bottom")
+
+```
 #### Diversity boxplot
 ```{r}
 # Diversity in orange juice
@@ -286,6 +347,31 @@ ggsave(filename = "Figure/rarefaction_curve_16S.png", device = "png",
        height = 4, width = 8, units = "in")
 
 ```
+
+```{r}
+dunn.test.16s.cd <- div_iNEXT_cd %>% group_by(Diversity) %>% dunn_test(Observed ~ Tech)
+dunn.test.16s.cd$p.format <- p_format(dunn.test.16s.cd$p.adj, accuracy = 0.01)
+```
+
+```{r}
+alpha_cd_16S <- div_iNEXT_cd %>%
+mutate(Diversity = factor(Diversity, 
+                          levels = c("Species richness",
+                                     "Shannon diversity",
+                                     "Simpson diversity"))) %>%
+  ggplot(aes(x = Tech, y = Observed, color = Treatment, group = Tech))+
+  geom_point(alpha = 0.8, size = 3)+
+  scale_color_manual(values = Treatment_color)+
+  theme_classic()+labs(x = NULL, y = "Value")+
+  facet_grid(.~Diversity)+
+  theme_pubr(legend = "none")+theme(axis.text.x = 
+                                      element_text(size = 10, angle = 90))+
+  stat_pvalue_manual(dunn.test.16s.cd, y.position = c(180,190,200), 
+                     label = "p.format")
+```
+
+
+
 #### Diversity boxplot
 ```{r}
 

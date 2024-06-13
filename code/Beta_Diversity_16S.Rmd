@@ -1,0 +1,1052 @@
+---
+title: "Beta_Diversity_16S"
+output: html_notebook
+editor_options: 
+  chunk_output_type: console
+---
+
+### Load packages
+
+```{r}
+pacman::p_load(phyloseq, tidyverse, ggpubr, ggforce, tempted,
+               RColorBrewer, install = FALSE)
+```
+
+### Set up color & shape preferences - Metadata variables
+
+```{r}
+source(file = "code/colors.R")
+```
+
+## Microbiome data is compositional.
+
+1.  Microbiome Datasets Are Compositional: And This Is Not Optional
+    <https://doi.org/10.3389/fmicb.2017.02224>
+2.  A Novel Sparse Compositional Technique Reveals Microbial
+    Perturbations (robust Aitchison PCA)
+    <https://doi.org/10.1128/msystems.00016-19>
+3.  Time-Informed Dimensionality Reduction for Longitudinal Microbiome
+    Studies <https://doi.org/10.1101/2023.07.26.550749>
+
+### Computational approach for compositional data
+
+Note: the code in the next four chunks won't be run. It is only for
+showing the workflow using popular packages. For this project, we will
+use a rather novel method implemented in `tempted` package. \####
+Imputation of zeros, left-censored and missing data in compositional
+data
+
+```{r}
+#zCompostionsR::
+
+```
+
+#### Centered log-ration (CLR) transformation
+
+```{r}
+#clr <- microbiome::transform(final_physeq, "clr")
+#otu_table(clr)[1:5,1:5]
+```
+
+#### Aitchison distance
+
+Aitchison distance is basically the Euclidean distances between
+CLR-transformed sample abundance vectors.
+
+```{r}
+#aitchison <- vegan::vegdist(clr, method = "euclidean")
+
+# Are results the same?
+#aitchison2 <- phyloseq::distance(clr, method = "euclidean")
+```
+
+#### Variance-based compositional principal component analysis (PCA)
+
+```{r}
+## while the method is specified as rda (short for Redundancy Analysis),
+## not specifying the 'formula' argument means we are running an unconstrained RDA,
+## which is equivalent to running PCA.
+# pca_clr <- phyloseq::ordinate(clr, method = "RDA", distance = aitchison2)
+```
+
+### TEMPoral TEnsor Decomposition (TEMPTED)
+
+The goal of TEMPTED is to perform dimensionality reduction for
+multivariate longitudinal data, with a special attention to longitudinal
+microbiome studies.
+
+#### Load the data and modify to the format required by 'tempted' package
+
+```{r}
+load("/local/workdir/yg225/JuiceMicrobiome/Data_16S/full_PERF_physeq.RData")
+
+metadata <- PERFect_physeq@sam_data %>% 
+  data.frame() %>%
+  mutate(Thermal = case_when(
+    (Treatment == "Pasteurization")~"Thermal",
+    (Treatment == "HPP")~"Non-thermal",
+    (Treatment == "HPP + DMDC + NG")~"Non-thermal",
+    (Treatment == "Pasteurization + DMDC + NG")~"Thermal",
+    (Treatment == "Pasteurization + SB + PS")~"Thermal",
+    (Treatment == "UV")~"Non-thermal",
+    (Treatment == "No Treatment")~"No Treatment")) %>%
+  mutate(Tech = case_when(
+  Treatment == "Pasteurization" |
+    Treatment == "Pasteurization + DMDC + NG" |
+    Treatment == "Pasteurization + SB + PS" ~ "Pasteurization",
+  Treatment == "HPP" | 
+    Treatment == "HPP + DMDC + NG" ~ "HPP",
+  .default = "Untreated & UV")) %>% mutate (Tech = as.factor(Tech))
+
+
+# A data.frame with rows representing samples and matching with data.frame count table and processed table
+## Create a unique ID for each (juice, treatment) combination
+ID_df <- metadata %>% expand(Beverage, Treatment, Trial) %>% 
+  mutate(JuiceID = seq(from = 1, to = nrow(.)))
+
+metatable <- metadata %>% 
+  # remove irrelevant columns
+  dplyr::select(-c("is.neg","Sample_or_Control")) %>% 
+  # Assign JuiceID to each entry
+  left_join(., y = ID_df,)
+
+rownames(metatable) <- rownames(metadata)
+
+
+# A data.frame with rows representing samples and matching with data.frame metatable and columns representing microbial features (i.e. OTUs). Each entry is a read count.
+
+counttable <- PERFect_physeq@otu_table %>% t() %>% as.data.frame() 
+
+# Check if rows match and display the number of matches which should equal the number of samples
+table(rownames(counttable) == rownames(metatable))
+
+# A variable storing ID and Treatment
+metauni <- unique(metatable[,c("JuiceID","Beverage","Treatment","Trial","Thermal","Tech")])
+```
+
+#### Run TEMPTED for Microbiome Count Data
+
+Following github tutorial
+<https://github.com/pixushi/tempted?tab=readme-ov-file>
+
+### OJ data set
+
+```{r}
+counttable_oj <- PERFect_physeq %>% subset_samples(Beverage == "Orange Juice") %>% otu_table() %>% t() %>% as.data.frame()
+
+metatable_oj <- metatable %>% filter(Beverage == "Orange Juice")
+
+res_count_oj <- tempted::tempted_all(counttable_oj,
+                                  metatable_oj$Day,
+                                  metatable_oj$JuiceID,
+                                  #settings used in the tutorial
+                                  threshold = 0.95,
+                                  transform = "clr",
+                                  pseudo = 0.5,
+                                  r = 3,
+                                  smooth = 1e-5,
+                                  pct_ratio = 0.1,
+                                  pct_aggregate = 1)
+#[output]
+#Calculate the 1th Component
+#Convergence reached at dif=6.49839324888754e-05, iter=5
+#Calculate the 2th Component
+#Convergence reached at dif=9.39913298056968e-05, iter=17
+#Calculate the 3th Component
+#Convergence reached at dif=3.96490016155808e-05, iter=7
+
+```
+
+#### Low-dimensional representation of SUBJECTS
+
+```{r}
+# Create a data frame for plotting samples on a 2D space
+A_data_oj <- metauni %>% filter(Beverage == "Orange Juice")
+
+rownames(A_data_oj) <- A_data_oj$JuiceID
+
+# Subject loadings are stored in A_hat (stored in res_count)
+A_data_oj <- cbind(res_count_oj$A_hat[rownames(A_data_oj),],A_data_oj)
+
+# Plot of subject loading
+p_oj <- A_data_oj %>% 
+  ggplot(aes(x = A_data_oj$PC1, y = A_data_oj$PC2))+
+  geom_point(aes(shape = Thermal, color = Treatment), 
+             size = 4)+ labs(x = "Component 1", y = "Component 2",
+                                     title = "Subject loadings")+
+  scale_color_manual(values = Treatment_color)
+p_oj + geom_mark_ellipse(aes(fill = Trial), expand = unit(2, "mm"))+
+scale_fill_manual(values = Trial_color)+
+  scale_y_continuous(limits = c(-0.4,0.8))+
+  #scale_x_continuous(limits = c(-0.4,0.6))+
+  theme_pubr(legend = "right")
+```
+
+Clearly, the beta diversity is driven by Trial, i.e. the source of thejuice.We can also kind of see that samples form thermal VS non-thermal
+cluster. The 'no treatment' cluster very much overlap with the
+non-thermal cluster. See the plot below.
+
+```{r}
+# Plot of subject loading
+p_oj2 <- A_data_oj %>% 
+  ggplot(aes(x = A_data_oj$PC1, y = A_data_oj$PC2))+
+  geom_point(aes(shape = Thermal, color = Treatment), size = 4)+ 
+  labs(x = "Component 1", 
+       y = "Component 2",
+       title = "Subject loadings")+
+  scale_color_manual(values = Treatment_color)
+
+p_oj2 + geom_mark_ellipse(aes(fill = Thermal), alpha = 0.15,
+                          expand = unit(3, "mm"))+
+  scale_fill_manual(values = Thermal_color)+
+  scale_y_continuous(limits = c(-0.4,0.6))+
+  scale_x_continuous(limits = c(-0.6,0.6))+
+  theme_pubr(legend = "right")+
+  guides(shape = "none")
+  
+
+```
+# Beta-diversity plots with 'less information'
+```{r}
+p_oj_min1 <- A_data_oj %>% 
+  ggplot(aes(x = PC1, y = PC2))+
+  geom_point(aes(color = Trial), size = 4)+
+  labs(x = "Component 1", y = "Component 2")+
+  scale_color_manual(values = Trial_color)+
+  theme_pubr()
+
+p_oj_min2 <- A_data_oj %>% 
+  ggplot(aes(x = PC2, y = PC3))+
+  geom_point(aes(color = Thermal), size = 4)+
+  labs(x = "Component 2", y = "Component 3",
+  title = "Subject loadings \n colored by treatment")+
+  scale_color_manual(values = Thermal_color)+
+  theme_pubr()
+
+
+p_oj_min3 <- A_data_oj %>%
+  ggplot(aes(x = PC2, y = PC3))+
+  geom_point(aes(color = Tech), size = 4)+
+  labs( x = "Component 2",
+        y = "Component 3",
+        color = "Treatment")+
+  scale_color_manual(values = Tech_color)+
+  theme_pubr()
+
+```
+#### Temporal loadings
+
+```{r}
+# Temporal loadings are stored in Phi_hat in res_count
+temporal_oj <- tempted::plot_time_loading(res_count_oj, r = 3)+
+  geom_line(linewidth = 2)+
+   scale_color_brewer(type = "qual")+
+  labs(x = "Day")+
+  theme_pubr()
+
+```
+
+#### Feature (ASV) loadings
+
+```{r}
+# Feature loadings are stored in B_hat in res_count
+res_count_oj$B_hat %>% as.data.frame() %>%
+  ggplot(aes(x = PC1, y = PC2))+
+  geom_point() + 
+  labs(x = "Component 1", y = "Component 2", title = "Feature loading")+
+  theme_pubr()
+
+```
+
+#### Log ratio of top features
+
+```{r}
+# Log ratios are stored in metafeature_ration in res_count
+# For grouping variable, subset the JuiceID, a desired column
+topfeat_oj <- tempted::plot_metafeature(res_count_oj$metafeature_ratio, 
+                          metauni[,c(1,6)],nrow = 3) + 
+  geom_line()+
+  xlab("Day")+theme_pubr()+
+  scale_color_manual(values = Tech_color, name = "Treatment")+
+  scale_fill_manual(values = Tech_color, name = "Treatment")
+```
+
+##### Putting the plots in one figure
+```{r}
+TEMPTED_16S_OJ <- ggarrange(ggarrange(temporal_oj, ggarrange(p_oj_min1, p_oj_min3, ncol = 2, legend.grob = trial_legend), nrow = 2, labels = c("A","B"), legend = "top"), topfeat_oj, ncol = 2, labels = c("","C"), legend.grob = tech_legend, legend = "bottom")
+
+```
+#### Subject trajectories
+
+```{r}
+# Subject trajectories are stored in metafeature_aggregate in res_count
+tempted::plot_metafeature(res_count_oj$metafeature_aggregate, metauni[,c(1,6)],nrow = 2)+
+  xlab("Days in shelf-life")+theme_classic()+
+  scale_fill_manual(values = Tech_color, name = "Treatment")+
+  scale_color_manual(values = Tech_color, name = "Treatment")
+
+```
+
+#### Low-dimensional representation of SAMPLES
+
+```{r}
+tab_feat_obs_oj <- res_count_oj$metafeature_aggregate %>%
+  as.data.frame()%>%
+  rename(JuiceID = subID) %>%
+  mutate(JuiceID = as.integer(JuiceID)) %>%
+  left_join(.,metauni)
+
+reshape_feat_obs_oj <- reshape(tab_feat_obs_oj,
+                            idvar = c("JuiceID", "timepoint"),
+                            v.names = c("value"),
+                            timevar = "PC",
+                            direction = "wide")
+colnames(reshape_feat_obs_oj) <- sub(".*value[.]","", colnames(reshape_feat_obs_oj))
+metatable_oj$timepoint <- metatable_oj$Day
+reshape_feat_obs_oj <- reshape_feat_obs_oj %>% 
+  left_join(., y = metatable_oj, by = c("Treatment", "Trial", "timepoint")) 
+
+
+reshape_feat_obs_oj %>% 
+  ggplot(aes(x = PC1, y = PC2))+
+  geom_point(aes(color = timepoint, shape = Thermal.x),size = 4)+ gradient_color("RdYlBu")+
+  labs(x = "Component 1", y = "Component 2", color = "Days")+
+  geom_mark_ellipse(aes(fill = Thermal.x), alpha = 0.15, expand = unit(0, "mm"))+ 
+  scale_fill_manual(values = Thermal_color)+
+  theme_classic()
+  #theme(plot.margin = margin(2, 2, 2, 2, "cm"))+
+  #scale_x_continuous(limits = c(-10,22))+
+  #scale_y_continuous(limits = c(-22,24))
+
+```
+
+This plot below shows that we cannot distinguish spoiled vs not spoiled
+
+```{r}
+reshape_feat_obs_oj %>% 
+  filter(Shelf_Life_Stage == "End") %>%
+  ggplot(aes(x = PC1, y = PC2))+
+  geom_point(aes(color = Spoilage, shape = Thermal.x),size = 4)+ 
+  scale_color_manual(values = Spoiled_color)+
+  labs(x = "Component 1", y = "Component 2", color = "Spoiled?", shape = "Treatment")+
+  geom_mark_ellipse(aes(fill = Spoilage), 
+                    alpha = 0.15, expand = unit(1, "mm"))+
+  scale_fill_manual(values = Spoiled_color)+
+  theme_pubr(legend = "right")
+  #theme(plot.margin = margin(2, 2, 2, 2, "cm"))
+  scale_x_continuous(limits = c(-30,24))+
+  scale_y_continuous(limits = c(-16,32))
+```
+
+Trajectory of Top features Component 1
+
+```{r}
+proportion_table_oj <- counttable_oj/rowSums(counttable_oj)
+
+f_loadings_oj <- data.frame(res_count_oj$B_hat)
+
+# Identify ASVs whose absolute values of loadings are in the top 5%
+top_abs_PC1_oj <- f_loadings_oj[(abs(f_loadings_oj$PC1))>=quantile(abs(f_loadings_oj$PC1),probs=0.95),] %>% rownames()
+
+top_PC1_oj_df <- f_loadings_oj[(abs(f_loadings_oj$PC1))>=quantile(abs(f_loadings_oj$PC1),probs=0.95),] 
+
+top_abs_PC1_oj <- top_PC1_oj_df[order(top_PC1_oj_df$PC1, decreasing = TRUE),] %>% rownames()
+
+PERFect_physeq@tax_table[top_abs_PC1_oj][,c("Family","Genus","Species")]
+top_abs_PC1_oj_labs <- c("Leuconostoc ASV_27",
+                       "Gluconobacter ASV_5",
+                       "Pantoea ASV_41",
+                       "Tatumella ASV_53",
+                       "Weissella ASV_133",
+                       "Unclassified \n Enterobacteriaceae \n ASV_209",
+                       "Leuconostoc ASV_102",
+                       "Erwinia ASV_67", 
+                       "Tatumella ASV_26",               
+                       "Zymomonas ASV_50",
+                       "Tatumella ASV_69",
+                       "Fructobacillus ASV_38",
+                       "Tatumella ASV_46",               
+                       "Weissella ASV_107",
+                       "Leuconostoc ASV_48",
+                       "Fructobacillus ASV_22",
+                       "Acetobacter ASV_44",
+                       "Tatumella ASV_2",
+                       "Weissella ASV_11")
+                       
+names(top_abs_PC1_oj_labs) <- top_abs_PC1_oj
+tab_sel_feat_oj <- cbind(proportion_table_oj[,top_abs_PC1_oj], metatable_oj)
+tab_sel_feat_oj <- reshape(tab_sel_feat_oj, 
+                        varying=list(top_abs_PC1_oj), 
+                        times=top_abs_PC1_oj, 
+                        timevar="feature", 
+                        v.names="RA", 
+                        ids=rownames(tab_sel_feat_oj),
+                        direction="long")
+p_topfeat_oj <- ggplot(data=tab_sel_feat_oj) + 
+  geom_point(aes(x=Day, y=RA, color=Trial, shape = Thermal), 
+             size = 2) +
+  facet_wrap(vars(feature),  labeller = labeller(feature = top_abs_PC1_oj_labs))+ scale_color_manual(values = Trial_color) + 
+  labs(x="Day of Shelf-Life", y="Relative Abundance")+  
+  #coord_trans(y="sqrt")+
+  theme_pubr()
+# summary plot
+p_topfeat_summary_oj_PC1 <- plot_feature_summary(proportion_table_oj[,top_abs_PC1_oj], 
+                     metatable_oj$Day, 
+                     metatable_oj$Tech, 
+                     bws=30, nrow = 4) + 
+  labs(x="Day of Shelf-Life", y="Relative Abundance")+
+      scale_fill_manual(values = Tech_color)+
+  scale_color_manual(values = Tech_color)+
+  facet_wrap(vars(feature_all), nrow = 4, 
+             scales = "free_y", 
+             labeller = 
+               labeller(feature_all = top_abs_PC1_oj_labs))+
+  guides(color = guide_legend(title = "Treatment"),
+         fill = guide_legend(title = "Treatment"))+
+  theme_pubr()
+
+plot_feature_summary(proportion_table_oj[,top_abs_PC1_oj], 
+                     metatable_oj$Day, 
+                     metatable_oj$Trial, 
+                     bws=30, nrow = 4) + 
+  labs(x="Day of Shelf-Life", y="Relative Abundance")+
+      scale_fill_manual(values = Trial_color)+
+  scale_color_manual(values = Trial_color)+
+  facet_wrap(vars(feature_all), nrow = 4, 
+             scales = "free_y", 
+             labeller = 
+               labeller(feature_all = top_abs_PC1_oj_labs))+
+  guides(color = guide_legend(title = "Trial"),
+         fill = guide_legend(title = "Trial"))+
+  theme_pubr()
+
+```
+
+Component 2
+
+```{r}
+# Identify ASVs whose absolute values of loadings are in the top 5%
+top_abs_PC2_oj <- f_loadings_oj[(abs(f_loadings_oj$PC2))>=quantile(abs(f_loadings_oj$PC2),probs=0.95),] %>% rownames()
+
+top_PC2_oj_df <- f_loadings_oj[(abs(f_loadings_oj$PC2))>=quantile(abs(f_loadings_oj$PC2),probs=0.95),] 
+
+top_abs_PC2_oj <- top_PC2_oj_df[order(top_PC2_oj_df$PC2, decreasing = TRUE),] %>% rownames()
+
+PERFect_physeq@tax_table[top_abs_PC2_oj][,c("Family","Genus","Species")]
+top_abs_PC2_oj_labs <- c("Enterobacter ASV_96",
+                       "Klebsiella ASV_34",
+                       "Klebsiella ASV_28",
+                       "Leuconostoc ASV_102",
+                       "Enterococcus ASV_416",
+                       "Gluconobacter ASV_68",
+                       "Serratia ASV_319",
+                       "Lactiplantibacillus \n ASV_175", 
+                       "Serratia ASV_309",               
+                       "Serratia ASV_64",
+                       "Rahnella ASV_224",
+                       "Unclassified \n Yersiniaceae \n  ASV_215",
+                       "Rahnella ASV_95",               
+                       "Rahnella ASV_57",
+                       "Rahnella ASV_182",
+                       "Rahnella ASV_166",
+                       "Rahnella ASV_39",
+                       "Rahnella ASV_23",
+                       "Serratia ASV_65")
+                       
+names(top_abs_PC2_oj_labs) <- top_abs_PC2_oj
+tab_sel_feat_oj_PC2 <- cbind(proportion_table_oj[,top_abs_PC2_oj], metatable_oj)
+tab_sel_feat_oj_PC2 <- reshape(tab_sel_feat_oj_PC2, 
+                        varying=list(top_abs_PC2_oj), 
+                        times=top_abs_PC2_oj, 
+                        timevar="feature", 
+                        v.names="RA", 
+                        ids=rownames(tab_sel_feat_oj_PC2),
+                        direction="long")
+p_topfeat_oj_PC2 <- ggplot(data=tab_sel_feat_oj_PC2) + 
+  geom_point(aes(x=Day, y=RA, color=Trial, shape = Thermal), 
+             size = 2) +
+  facet_wrap(vars(feature),  labeller = labeller(feature = top_abs_PC2_oj_labs))+ scale_color_manual(values = Trial_color) + 
+  labs(x="Day of Shelf-Life", y="Relative Abundance")+  
+  #coord_trans(y="sqrt")+
+  theme_pubr()
+# summary plot
+p_topfeat_summary_oj_PC2 <- plot_feature_summary(proportion_table_oj[,top_abs_PC2_oj], 
+                     metatable_oj$Day, 
+                     metatable_oj$Tech, 
+                     bws=30, nrow = 4) + 
+  labs(x="Day of Shelf-Life", y="Relative Abundance")+
+      scale_fill_manual(values = Tech_color)+
+  scale_color_manual(values = Tech_color)+
+  facet_wrap(vars(feature_all), nrow = 4, 
+             scales = "free_y", 
+             labeller = 
+               labeller(feature_all = top_abs_PC2_oj_labs))+
+  guides(color = guide_legend(title = "Treatment"),
+         fill = guide_legend(title = "Treatment"))+
+  theme_pubr()
+
+plot_feature_summary(proportion_table_oj[,top_abs_PC2_oj], 
+                     metatable_oj$Day, 
+                     metatable_oj$Trial, 
+                     bws=30, nrow = 4) + 
+  labs(x="Day of Shelf-Life", y="Relative Abundance")+
+      scale_fill_manual(values = Trial_color)+
+  scale_color_manual(values = Trial_color)+
+  facet_wrap(vars(feature_all), nrow = 4, 
+             scales = "free_y", 
+             labeller = 
+               labeller(feature_all = top_abs_PC2_oj_labs))+
+  guides(color = guide_legend(title = "Treatment"),
+         fill = guide_legend(title = "Treatment"))+
+  theme_pubr()
+```
+
+Component 3
+
+```{r}
+# Identify ASVs whose absolute values of loadings are in the top 5%
+top_abs_PC3_oj <- f_loadings_oj[(abs(f_loadings_oj$PC3))>=quantile(abs(f_loadings_oj$PC3),probs=0.95),] %>% rownames()
+
+top_PC3_oj_df <- f_loadings_oj[(abs(f_loadings_oj$PC3))>=quantile(abs(f_loadings_oj$PC3),probs=0.95),] 
+
+top_abs_PC3_oj <- top_PC3_oj_df[order(top_PC3_oj_df$PC3, decreasing = TRUE),] %>% rownames()
+
+PERFect_physeq@tax_table[top_abs_PC3_oj][,c("Family","Genus","Species")]
+top_abs_PC3_oj_labs <- c("Leuconostoc ASV_27",
+                       "Unclassified \n Enterobacterales \n ASV_137",
+                       "Fructobacillus ASV_22",
+                       "Enterobacter ASV_96",
+                       "Leuconostoc ASV_48",
+                       "Kluyvera ASV_186",
+                       "Klebsiella ASV_28",
+                       "Rahnella ASV_95", 
+                       "Weissella ASV_216",               
+                       "Kluyvera ASV_294",
+                       "Pantoea ASV_74",
+                       "Pantoea  ASV_121",
+                       "Pantoea ASV_243",               
+                       "Weissella ASV_235",
+                       "Leuconostoc ASV_227",
+                       "Erwinia ASV_220",
+                       "Unclassified \n Streptococcaceae \n ASV_221",
+                       "Pantoea ASV_63",
+                       "Pantoea ASV_129")
+                       
+names(top_abs_PC3_oj_labs) <- top_abs_PC3_oj
+tab_sel_feat_oj_PC3 <- cbind(proportion_table_oj[,top_abs_PC3_oj], metatable_oj)
+tab_sel_feat_oj_PC3 <- reshape(tab_sel_feat_oj_PC3, 
+                        varying=list(top_abs_PC3_oj), 
+                        times=top_abs_PC3_oj, 
+                        timevar="feature", 
+                        v.names="RA", 
+                        ids=rownames(tab_sel_feat_oj_PC3),
+                        direction="long")
+p_topfeat_oj_PC3 <- ggplot(data=tab_sel_feat_oj_PC3) + 
+  geom_point(aes(x=Day, y=RA, color=Trial, shape = Thermal), 
+             size = 2) +
+  facet_wrap(vars(feature),  labeller = labeller(feature = top_abs_PC3_oj_labs))+ scale_color_manual(values = Trial_color) + 
+  labs(x="Day of Shelf-Life", y="Relative Abundance")+  
+  #coord_trans(y="sqrt")+
+  theme_pubr()
+# summary plot
+p_topfeat_summary_oj_PC3 <- plot_feature_summary(proportion_table_oj[,top_abs_PC3_oj], 
+                     metatable_oj$Day, 
+                     metatable_oj$Tech, 
+                     bws=30, nrow = 4) + 
+  labs(x="Day of Shelf-Life", y="Relative Abundance")+
+      scale_fill_manual(values = Tech_color)+
+  scale_color_manual(values = Tech_color)+
+  facet_wrap(vars(feature_all), nrow = 4, 
+             scales = "free_y", 
+             labeller = 
+               labeller(feature_all = top_abs_PC3_oj_labs))+
+  guides(color = guide_legend(title = "Treatment"),
+         fill = guide_legend(title = "Treatment"))+
+  theme_pubr()
+
+plot_feature_summary(proportion_table_oj[,top_abs_PC3_oj], 
+                     metatable_oj$Day, 
+                     metatable_oj$Trial, 
+                     bws=30, nrow = 4) + 
+  labs(x="Day of Shelf-Life", y="Relative Abundance")+
+      scale_fill_manual(values = Trial_color)+
+  scale_color_manual(values = Trial_color)+
+  facet_wrap(vars(feature_all), nrow = 4, 
+             scales = "free_y", 
+             labeller = 
+               labeller(feature_all = top_abs_PC3_oj_labs))+
+  guides(color = guide_legend(title = "Treatment"),
+         fill = guide_legend(title = "Treatment"))+
+  theme_pubr()
+```
+
+Plot environmental contaminants in Trial 2
+```{r}
+plot_feature_summary((proportion_table_oj %>% select(ASV_121, ASV_129, ASV_216, ASV_63, ASV_74, ASV_48)), metatable_oj$Day, metatable_oj$Trial, bws = 30, nrow = 4)+ 
+  labs(x = "Days of Shelf-Life", y = "Relative Abundance")+
+  scale_fill_manual(values = Trial_color, name = "Trial")+
+  scale_color_manual(values = Trial_color, name = "Trial")+
+  facet_wrap(vars(feature_all), nrow = 4,
+             scales = "free_y",
+             labeller = labeller(feature_all = top_abs_PC3_oj_labs))+theme_pubr()
+
+```
+Plot PPCs relevent to Component 1
+```{r}
+bact_PPCs_OJ <- plot_feature_summary((proportion_table_oj %>% select(ASV_41, ASV_50, ASV_67, ASV_69)), metatable_oj$Day, metatable_oj$Tech, bws = 30, nrow = 5)+labs(x = "Day", y = "Relative Abundance")+
+  scale_fill_manual(values = Tech_color, name = "Treatment")+
+  scale_color_manual(values = Tech_color, name = "Treatment")+
+  facet_wrap(vars(feature_all), nrow = 5,
+             scales = "free_y",
+             labeller = labeller(feature_all = top_abs_PC1_oj_labs))+theme_pubr(legend = "none")
+
+```
+Plot genera that recovered after HPP
+```{r}
+bact_HPP_OJ <- plot_feature_summary((proportion_table_oj %>% select(ASV_5, ASV_44, ASV_102)), metatable_oj$Day, metatable_oj$Tech, bws = 30, nrow = 3)+labs(x = "Day", y = "Relative Abundance")+
+  scale_fill_manual(values = Tech_color, name = "Treatment")+
+  scale_color_manual(values = Tech_color, name = "Treatment")+
+  facet_wrap(vars(feature_all), nrow = 3,
+             scales = "free_y",
+             labeller = labeller(feature_all = top_abs_PC1_oj_labs))+theme_pubr(legend = "none")
+
+```
+
+### Cider data set
+
+```{r}
+# Remove subject with only 1 time point to avoid error
+which(table(metatable$JuiceID) <2)
+
+# Remove JuiceID 22, 24, 29, 30 from metatable
+metatable_cd <- metatable %>% dplyr::filter(Beverage == "Cider") %>% filter(!(JuiceID %in% c(22,24,29,30)))
+
+# Remove samples in to_rm from the count table
+counttable_cd <- counttable[rownames(metatable_cd),]
+
+table(rownames(counttable_cd) == rownames(metatable_cd))
+```
+
+```{r}
+
+res_count_cd <- tempted::tempted_all(counttable_cd,
+                                  metatable_cd$Day,
+                                  metatable_cd$JuiceID,
+                                  #settings used in the tutorial
+                                  threshold = 0.95,
+                                  transform = "clr",
+                                  pseudo = 0.5,
+                                  r = 3,
+                                  smooth = 1e-5,
+                                  pct_ratio = 0.1,
+                                  pct_aggregate = 1)
+#[output]
+#Calculate the 1th Component
+#Convergence reached at dif=3.68818219315714e-05, iter=5
+#Calculate the 2th Component
+#Convergence reached at dif=8.65008067213293e-05, iter=6
+#Calculate the 3th Component
+#Convergence reached at dif=7.92432462394864e-05, iter=5
+```
+
+#### Low-dimensional representation of SUBJECTS
+
+```{r}
+# Create a data frame for plotting samples on a 2D space
+A_data_cd <- metauni %>% filter(Beverage == "Cider") %>% filter(!(JuiceID %in% c(22,24,29,30)))
+
+rownames(A_data_cd) <- A_data_cd$JuiceID
+
+# Subject loadings are stored in A_hat (stored in res_count)
+A_data_cd <- cbind(res_count_cd$A_hat[rownames(A_data_cd),],A_data_cd)
+
+# Plot of subject loading
+p_cd <- A_data_cd %>% 
+  ggplot(aes(x = A_data_cd$PC2, y = A_data_cd$PC3))+
+  geom_point(aes(shape = Thermal, color = Treatment), 
+             size = 4)+ labs(x = "Component 2", y = "Component 3",
+                                     title = "Subject loadings")+
+  scale_color_manual(values = Treatment_color)
+p_cd + geom_mark_ellipse(aes(fill = Trial), expand = unit(3, "mm"))+
+scale_fill_manual(values = Trial_color)+
+  scale_y_continuous(limits = c(-1,0.4))+
+  scale_x_continuous(limits = c(-0.6,0.6))+
+  theme_pubr(legend = "right")
+```
+
+Clearly, the beta diversity is driven by Trial, i.e. the source of the
+juice.Unlike in orange juice, cider samples don't seem to form thermal Vs non-thermal clusters.
+
+```{r}
+# Plot of subject loading
+p_cd2 <- A_data_cd %>% ggplot(aes(x = A_data_cd$PC2, y = A_data_cd$PC3))+
+  geom_point(aes(shape = Thermal, color = Treatment), size = 4)+ 
+  labs(x = "Component 2", 
+       y = "Component 3",
+       title = "Subject loadings")+
+  scale_color_manual(values = Treatment_color)
+
+p_cd2 + geom_mark_ellipse(aes(fill = Thermal), alpha = 0.15,
+                          expand = unit(2, "mm"))+
+  scale_fill_manual(values = Thermal_color)+
+  #scale_y_continuous(limits = c(-0.4,0.8))+
+  scale_x_continuous(limits = c(-0.6,0.6))+
+  theme_pubr(legend = "right")+
+  guides(shape = "none", color = "none")
+  
+
+```
+
+```{r}
+p_cd_min1 <- A_data_cd %>% 
+  ggplot(aes(x = PC1, y = PC2))+
+  geom_point(aes(color = Trial), size = 4)+
+  labs(x = "Component 1", y = "Component 2")+
+  scale_color_manual(values = Trial_color)+
+  theme_pubr()
+
+p_cd_min2 <- A_data_cd %>% 
+  ggplot(aes(x = PC2, y = PC3))+
+  geom_point(aes(color = Trial), size = 4)+
+  labs(x = "Component 2", y = "Component 3",
+  title = "Subject loadings \n colored by Trial")+
+  scale_color_manual(values = Trial_color)+
+  theme_pubr()
+  
+
+p_cd_min3 <- A_data_cd %>% 
+  ggplot(aes(x = PC2, y = PC3))+
+  geom_point(aes(color = Tech), size = 4)+
+  labs(x = "Component 2", y = "Component 3")+
+  scale_color_manual(values = Tech_color)+
+  theme_pubr()
+ggarrange(p_cd_min1, p_cd_min3, legend = "bottom")
+
+```
+#### Temporal loadings
+
+```{r}
+# Temporal loadings are stored in Phi_hat in res_count
+temporal_cd <- tempted::plot_time_loading(res_count_cd, r = 3)+
+  geom_line(linewidth = 2)+
+  scale_color_brewer(type = "qual")+
+  labs(x = "Day")+
+  theme_pubr(legend = "top")
+
+```
+
+#### Feature (ASV) loadings
+
+```{r}
+# Feature loadings are stored in B_hat in res_count
+res_count_cd$B_hat %>% as.data.frame() %>%
+  ggplot(aes(x = PC2, y = PC3))+
+  geom_point() + 
+  labs(x = "Component 2", y = "Component 3", title = "Feature loading")+
+  theme_classic()
+
+```
+
+#### Log ratio of top features
+
+```{r}
+# Log ratios are stored in metafeature_ration in res_count
+# For grouping variable, subset the JuiceID, a desired column
+topfeat_cd <- tempted::plot_metafeature(res_count_cd$metafeature_ratio, 
+                          metauni[,c(1,6)],nrow = 3) + 
+  geom_line()+
+  xlab("Day")+theme_classic()+
+  scale_color_manual(values = Tech_color, name = "Treatment")+
+  scale_fill_manual(values = Tech_color, name = "Treatment")
+```
+Putting together plots in 1 figure
+```{r}
+TEMPTED_16S_CD <- ggarrange(ggarrange(temporal_cd, ggarrange(p_cd_min1, p_cd_min3, ncol = 2, legend.grob = trial_legend), nrow = 2, labels = c("A","B"), legend = "top"), topfeat_cd, ncol = 2, labels = c("","C"), legend.grob = tech_legend, legend = "bottom")
+
+```
+
+#### Subject trajectories
+
+```{r}
+# Subject trajectories are stored in metafeature_aggregate in res_count
+tempted::plot_metafeature(res_count_cd$metafeature_aggregate, metauni[,c(1,5)],nrow = 2)+
+  xlab("Days in shelf-life")+theme_classic()+
+  scale_fill_manual(values = Thermal_color, name = "Treatment")+
+  scale_color_manual(values = Thermal_color, name = "Treatment")
+
+```
+
+#### Low-dimensional representation of SAMPLES
+
+```{r}
+tab_feat_obs_cd <- res_count_cd$metafeature_aggregate %>%
+  as.data.frame()%>%
+  rename(JuiceID = subID) %>%
+  mutate(JuiceID = as.integer(JuiceID)) %>%
+  left_join(.,metauni)
+
+reshape_feat_obs_cd <- reshape(tab_feat_obs_cd,
+                            idvar = c("JuiceID", "timepoint"),
+                            v.names = c("value"),
+                            timevar = "PC",
+                            direction = "wide")
+colnames(reshape_feat_obs_cd) <- sub(".*value[.]","", colnames(reshape_feat_obs_cd))
+metatable_cd$timepoint <- metatable_cd$Day
+reshape_feat_obs_cd <- reshape_feat_obs_cd %>% 
+  left_join(., y = metatable_cd, by = c("Treatment", "Trial", "timepoint")) 
+
+
+reshape_feat_obs_cd %>% 
+  ggplot(aes(x = PC2, y = PC3))+
+  geom_point(aes(color = timepoint, shape = Thermal.x),size = 4)+ gradient_color("RdYlBu")+
+  labs(x = "Component 2", y = "Component 3", color = "Days")+
+  geom_mark_ellipse(aes(fill = Thermal.x), alpha = 0.15, expand = unit(0, "mm"))+ 
+  scale_fill_manual(values = Thermal_color)+
+  theme_classic()
+  #theme(plot.margin = margin(2, 2, 2, 2, "cm"))+
+  #scale_x_continuous(limits = c(-10,22))+
+  #scale_y_continuous(limits = c(-22,24))
+
+```
+
+This plot below shows that we cannot distinguish spoiled vs not spoiled
+
+```{r}
+reshape_feat_obs_cd %>% 
+  filter(Shelf_Life_Stage == "End") %>%
+  ggplot(aes(x = PC2, y = PC3))+
+  geom_point(aes(color = Spoilage, shape = Thermal.x),size = 4)+ 
+  scale_color_manual(values = Spoiled_color)+
+  labs(x = "Component 2", y = "Component 3", color = "Spoiled?", shape = "Treatment")+
+  geom_mark_ellipse(aes(fill = Spoilage), 
+                    alpha = 0.15, expand = unit(1, "mm"))+
+  scale_fill_manual(values = Spoiled_color)+
+  theme_classic()+
+  theme(plot.margin = margin(2, 2, 2, 2, "cm"))+
+  scale_x_continuous(limits = c(-22,22))+
+  scale_y_continuous(limits = c(-10,22))
+```
+
+Top ASVs of Component 1
+```{r}
+proportion_table_cd <- counttable_cd/rowSums(counttable_cd)
+
+f_loadings_cd <- data.frame(res_count_cd$B_hat)
+
+# Identify ASVs whose absolute values of loadings are in the top 5%
+top_abs_PC1_cd <- f_loadings_cd[(abs(f_loadings_cd$PC1))>=quantile(abs(f_loadings_cd$PC1),probs=0.95),] %>% rownames()
+
+top_PC1_cd_df <- f_loadings_cd[(abs(f_loadings_cd$PC1))>=quantile(abs(f_loadings_cd$PC1),probs=0.95),] 
+
+top_abs_PC1_cd <- top_PC1_cd_df[order(top_PC1_cd_df$PC1, decreasing = TRUE),] %>% rownames()
+
+PERFect_physeq@tax_table[top_abs_PC1_cd][,c("Family","Genus","Species")]
+top_abs_PC1_cd_labs <- c("Pseudomonas ASV_54",
+                       "Serratia ASV_65",
+                       "Rahnella ASV_90",
+                       "Serratia ASV_64",
+                       "Pseudomonas ASV_141",
+                       "Pseudomonas ASV_14",
+                       "Pseudomonas ASV_189",
+                       "Pseudomonas ASV_198", 
+                       "Erwinia ASV_193",               
+                       "Pseudomonas ASV_222",
+                       "Methylobacterium \n -Methylorubrum ASV_52",
+                       "Rhodococcus ASV_172",
+                       "Novosphingobium ASV_119",               
+                       "Unclassified \n Sphingomonadaceae ASV_148",
+                       "Allorhizobium-Neorhizobium \n -Pararhizobium-Rhizobium ASV_98",
+                       "Patulibacter ASV_56",
+                       "Propionibacterium ASV_30",
+                       "Sphingomonas ASV_77")
+                       
+names(top_abs_PC1_cd_labs) <- top_abs_PC1_cd
+tab_sel_feat_cd <- cbind(proportion_table_cd[,top_abs_PC1_cd], metatable_cd)
+tab_sel_feat_cd <- reshape(tab_sel_feat_cd, 
+                        varying=list(top_abs_PC1_cd), 
+                        times=top_abs_PC1_cd, 
+                        timevar="feature", 
+                        v.names="RA", 
+                        ids=rownames(tab_sel_feat_cd),
+                        direction="long")
+p_topfeat_cd <- ggplot(data=tab_sel_feat_cd) + 
+  geom_point(aes(x=Day, y=RA, color=Trial, shape = Thermal), 
+             size = 2) +
+  facet_wrap(vars(feature),  labeller = labeller(feature = top_abs_PC1_cd_labs))+ scale_color_manual(values = Trial_color) + 
+  labs(x="Day of Shelf-Life", y="Relative Abundance")+  
+  #coord_trans(y="sqrt")+
+  theme_pubr()
+# summary plot
+p_topfeat_summary_cd_PC1 <- plot_feature_summary(proportion_table_cd[,top_abs_PC1_cd], 
+                     metatable_cd$Day, 
+                     metatable_cd$Tech, 
+                     bws=30, nrow = 4) + 
+  labs(x="Day of Shelf-Life", y="Relative Abundance")+
+      scale_fill_manual(values = Tech_color)+
+  scale_color_manual(values = Tech_color)+
+  facet_wrap(vars(feature_all), nrow = 4, 
+             scales = "free_y", 
+             labeller = 
+               labeller(feature_all = top_abs_PC1_cd_labs))+
+  guides(color = guide_legend(title = "Treatment"),
+         fill = guide_legend(title = "Treatment"))+
+  theme_pubr()
+
+```
+
+Top ASVs Component 2
+```{r}
+# Identify ASVs whose absolute values of loadings are in the top 5%
+top_abs_PC2_cd <- f_loadings_cd[(abs(f_loadings_cd$PC2))>=quantile(abs(f_loadings_cd$PC2),probs=0.95),] %>% rownames()
+
+top_PC2_cd_df <- f_loadings_cd[(abs(f_loadings_cd$PC2))>=quantile(abs(f_loadings_cd$PC2),probs=0.95),] 
+
+top_abs_PC2_cd <- top_PC2_cd_df[order(top_PC2_cd_df$PC2, decreasing = TRUE),] %>% rownames()
+
+PERFect_physeq@tax_table[top_abs_PC2_cd][,c("Family","Genus","Species")]
+top_abs_PC2_cd_labs <- c("Klebsiella ASV_28",
+                       "Klebsiella ASV_34",
+                       "Klebsiella ASV_88",
+                       "Klebsiella ASV_89",
+                       "Klebsiella ASV_58",
+                       "Klebsiella ASV_93",
+                       "Kluyvera ASV_158",
+                       "Pantoea ASV_41",
+                       "Unclassified \n Enterobacteriaceae ASV_217",
+                       "Pantoea ASV_62", 
+                       "Cronobacter ASV_233",               
+                       "Unclassified \n Enterobacteriaceae ASV_310",
+                       "1174-901-12 ASV_32",
+                       "Unclassified \n Enterobacteriaceae ASV_362",
+                       "Kosakonia ASV_279",               
+                       "Unclassified \n Enterobacteriaceae ASV_327",
+                       "Gluconobacter ASV_68",
+                       "Methylobacterium-\n Methylorubrum ASV_52")
+                       
+names(top_abs_PC2_cd_labs) <- top_abs_PC2_cd
+tab_sel_feat_cd_PC2 <- cbind(proportion_table_cd[,top_abs_PC2_cd], metatable_cd)
+tab_sel_feat_cd_PC2 <- reshape(tab_sel_feat_cd_PC2, 
+                        varying=list(top_abs_PC2_cd), 
+                        times=top_abs_PC2_cd, 
+                        timevar="feature", 
+                        v.names="RA", 
+                        ids=rownames(tab_sel_feat_cd_PC2),
+                        direction="long")
+p_topfeat_cd_PC2 <- ggplot(data=tab_sel_feat_cd_PC2) + 
+  geom_point(aes(x=Day, y=RA, color=Trial, shape = Thermal), 
+             size = 2) +
+  facet_wrap(vars(feature),  labeller = labeller(feature = top_abs_PC2_cd_labs))+ scale_color_manual(values = Trial_color) + 
+  labs(x="Day of Shelf-Life", y="Relative Abundance")+  
+  #coord_trans(y="sqrt")+
+  theme_pubr()
+# summary plot
+p_topfeat_summary_cd_PC2 <- plot_feature_summary(proportion_table_cd[,top_abs_PC2_cd], 
+                     metatable_cd$Day, 
+                     metatable_cd$Tech, 
+                     bws=30, nrow = 4) + 
+  labs(x="Day of Shelf-Life", y="Relative Abundance")+
+      scale_fill_manual(values = Tech_color)+
+  scale_color_manual(values = Tech_color)+
+  facet_wrap(vars(feature_all), nrow = 4, 
+             scales = "free_y", 
+             labeller = 
+               labeller(feature_all = top_abs_PC2_cd_labs))+
+  guides(color = guide_legend(title = "Treatment"),
+         fill = guide_legend(title = "Treatment"))+
+  theme_pubr()
+
+plot_feature_summary(proportion_table_cd[,top_abs_PC2_cd], 
+                     metatable_cd$Day, 
+                     metatable_cd$Trial, 
+                     bws=30, nrow = 4) + 
+  labs(x="Day of Shelf-Life", y="Relative Abundance")+
+      scale_fill_manual(values = Trial_color)+
+  scale_color_manual(values = Trial_color)+
+  facet_wrap(vars(feature_all), nrow = 4, 
+             scales = "free_y", 
+             labeller = 
+               labeller(feature_all = top_abs_PC2_cd_labs))+
+  guides(color = guide_legend(title = "Treatment"),
+         fill = guide_legend(title = "Treatment"))+
+  theme_pubr()
+```
+
+Top ASVs Component 3
+```{r}
+# Identify ASVs whose absolute values of loadings are in the top 5%
+top_abs_PC3_cd <- f_loadings_cd[(abs(f_loadings_cd$PC3))>=quantile(abs(f_loadings_cd$PC3),probs=0.95),] %>% rownames()
+
+top_PC3_cd_df <- f_loadings_cd[(abs(f_loadings_cd$PC3))>=quantile(abs(f_loadings_cd$PC3),probs=0.95),] 
+
+top_abs_PC3_cd <- top_PC3_cd_df[order(top_PC3_cd_df$PC3, decreasing = TRUE),] %>% rownames()
+
+PERFect_physeq@tax_table[top_abs_PC3_cd][,c("Family","Genus","Species")]
+top_abs_PC3_cd_labs <- c("Sphingomonas ASV_73",
+                       "Escherichia- \n Shigella ASV_71",
+                       "Pseudomonas ASV_86",
+                       "Cupriavidus ASV_169",
+                       "Xanthomonas ASV_126",
+                       "Propionibacterium ASV_30",
+                       "Methylobacterium- \n Methylorubrum ASV_52",
+                       "Pseudomonas ASV_19",
+                       "Rahnella ASV_37",
+                       "Komagataeibacter ASV_393", 
+                       "Kosakonia ASV_239",               
+                       "Gluconacetobacter ASV_345",
+                       "Gluconobacter ASV_68",
+                       "Acetobacter ASV_43",
+                       "Allorhizobium-Neorhizobium \n -Pararhizobium-Rhizobium ASV_574",               
+                       "Cutibacterium ASV_266",
+                       "Allorhizobium-Neorhizobium \n -Pararhizobium-Rhizobium ASV_314",
+                        "Luteibacter ASV_272")
+                       
+names(top_abs_PC3_cd_labs) <- top_abs_PC3_cd
+tab_sel_feat_cd_PC3 <- cbind(proportion_table_cd[,top_abs_PC3_cd], metatable_cd)
+tab_sel_feat_cd_PC3 <- reshape(tab_sel_feat_cd_PC3, 
+                        varying=list(top_abs_PC3_cd), 
+                        times=top_abs_PC3_cd, 
+                        timevar="feature", 
+                        v.names="RA", 
+                        ids=rownames(tab_sel_feat_cd_PC3),
+                        direction="long")
+p_topfeat_cd_PC3 <- ggplot(data=tab_sel_feat_cd_PC3) + 
+  geom_point(aes(x=Day, y=RA, color=Trial, shape = Thermal), 
+             size = 2) +
+  facet_wrap(vars(feature),  labeller = labeller(feature = top_abs_PC3_cd_labs))+ scale_color_manual(values = Trial_color) + 
+  labs(x="Day of Shelf-Life", y="Relative Abundance")+  
+  #coord_trans(y="sqrt")+
+  theme_pubr()
+# summary plot
+p_topfeat_summary_cd_PC3 <- plot_feature_summary(proportion_table_cd[,top_abs_PC3_cd], 
+                     metatable_cd$Day, 
+                     metatable_cd$Tech, 
+                     bws=30, nrow = 4) + 
+  labs(x="Day of Shelf-Life", y="Relative Abundance")+
+      scale_fill_manual(values = Tech_color)+
+  scale_color_manual(values = Tech_color)+
+  facet_wrap(vars(feature_all), nrow = 4, 
+             scales = "free_y", 
+             labeller = 
+               labeller(feature_all = top_abs_PC3_cd_labs))+
+  guides(color = guide_legend(title = "Treatment"),
+         fill = guide_legend(title = "Treatment"))+
+  theme_pubr()
+
+plot_feature_summary(proportion_table_cd[,top_abs_PC3_cd], 
+                     metatable_cd$Day, 
+                     metatable_cd$Trial, 
+                     bws=30, nrow = 4) + 
+  labs(x="Day of Shelf-Life", y="Relative Abundance")+
+      scale_fill_manual(values = Trial_color)+
+  scale_color_manual(values = Trial_color)+
+  facet_wrap(vars(feature_all), nrow = 4, 
+             scales = "free_y", 
+             labeller = 
+               labeller(feature_all = top_abs_PC3_cd_labs))+
+  guides(color = guide_legend(title = "Treatment"),
+         fill = guide_legend(title = "Treatment"))+
+  theme_pubr()
+
+```
+
+```
