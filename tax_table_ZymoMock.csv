@@ -1,0 +1,9 @@
+Domain,Phylum,Class,Order,Family,Genus,Species
+Bacteria,Firmicutes,Bacilli,Bacillales,Bacillaceae,Bacillus,Bacillus.subtilis
+Bacteria,Firmicutes,Bacilli,Lactobacillales,Enterococcaceae,Enterococcus,Enterococcus.faecalis
+Bacteria,Proteobacteria,Gammaproteobacteria,Enterobacterales,Enterobacteriaceae,Escherichia,Escherichia.coli
+Bacteria,Firmicutes,Bacilli,Lactobacillales,Lactobacillaceae,Lactobacillus,Lactobacillus.fermentum
+Bacteria,Firmicutes,Bacilli,Bacillales,Listeriaceae,Listeria,Listeria.monocytogenes
+Bacteria,Proteobacteria,Gammaproteobacteria,Pseudomonadales,Pseudomonadaceae,Pseudomonas,Pseudomonas.aeruginosa
+Bacteria,Proteobacteria,Gammaproteobacteria,Enterobacterales,Enterobacteriaceae,Salmonella,Salmonella.enterica
+Bacteria,Firmicutes,Bacilli,Bacillales,Staphylococcaceae,Staphylococcus,Staphylococcus.aureus
