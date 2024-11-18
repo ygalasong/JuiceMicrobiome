@@ -8,14 +8,14 @@ editor_options:
 ### Load packages
 
 ```{r}
-pacman::p_load(phyloseq, tidyverse, ggpubr, ggforce, tempted,
+pacman::p_load(phyloseq, tidyverse, ggpubr, ggforce, tempted, vegan,
                RColorBrewer, install = FALSE)
 ```
 
 ### Set up color & shape preferences - Metadata variables
 
 ```{r}
-source(file = "code/colors.R")
+source(file = "/local/workdir/yg225/JuiceMicrobiome/code/colors.R")
 ```
 
 ## Microbiome data is compositional.
@@ -27,47 +27,6 @@ source(file = "code/colors.R")
     <https://doi.org/10.1128/msystems.00016-19>
 3.  Time-Informed Dimensionality Reduction for Longitudinal Microbiome
     Studies <https://doi.org/10.1101/2023.07.26.550749>
-
-### Computational approach for compositional data
-
-Note: the code in the next four chunks won't be run. It is only for
-showing the workflow using popular packages. For this project, we will
-use a rather novel method implemented in `tempted` package. \####
-Imputation of zeros, left-censored and missing data in compositional
-data
-
-```{r}
-#zCompostionsR::
-
-```
-
-#### Centered log-ration (CLR) transformation
-
-```{r}
-#clr <- microbiome::transform(final_physeq, "clr")
-#otu_table(clr)[1:5,1:5]
-```
-
-#### Aitchison distance
-
-Aitchison distance is basically the Euclidean distances between
-CLR-transformed sample abundance vectors.
-
-```{r}
-#aitchison <- vegan::vegdist(clr, method = "euclidean")
-
-# Are results the same?
-#aitchison2 <- phyloseq::distance(clr, method = "euclidean")
-```
-
-#### Variance-based compositional principal component analysis (PCA)
-
-```{r}
-## while the method is specified as rda (short for Redundancy Analysis),
-## not specifying the 'formula' argument means we are running an unconstrained RDA,
-## which is equivalent to running PCA.
-# pca_clr <- phyloseq::ordinate(clr, method = "RDA", distance = aitchison2)
-```
 
 ### TEMPoral TEnsor Decomposition (TEMPTED)
 
@@ -182,7 +141,7 @@ scale_fill_manual(values = Trial_color)+
   theme_pubr(legend = "right")
 ```
 
-Clearly, the beta diversity is driven by Trial, i.e. the source of thejuice.We can also kind of see that samples form thermal VS non-thermal
+Clearly, the beta diversity is driven by Trial, i.e. the source of the juice.We can also kind of see that samples form thermal VS non-thermal
 cluster. The 'no treatment' cluster very much overlap with the
 non-thermal cluster. See the plot below.
 
@@ -206,7 +165,7 @@ p_oj2 + geom_mark_ellipse(aes(fill = Thermal), alpha = 0.15,
   
 
 ```
-# Beta-diversity plots with 'less information'
+#### Beta-diversity plots with 'less information'
 ```{r}
 p_oj_min1 <- A_data_oj %>% 
   ggplot(aes(x = PC1, y = PC2))+
@@ -234,6 +193,55 @@ p_oj_min3 <- A_data_oj %>%
   theme_pubr()
 
 ```
+
+To determine the statistical differences between groups, we can run PERMANOVA on the TEMPTED output.
+```{r}
+datlist_oj_16S <- format_tempted(counttable_oj,
+                                 metatable_oj$Day,
+                                 metatable_oj$JuiceID,
+                                 threshold = 0.95,
+                                 transform = "none")
+ratio_feat_oj_16S <- ratio_feature(res_count_oj, datlist_oj_16S, pct = 0.005, absolute = TRUE)
+
+## summed up, by individual subject
+tab_feat_ratio_oj_16S <- ratio_feat_oj_16S$metafeature_ratio
+colnames(tab_feat_ratio_oj_16S )[2] <- 'JuiceID'
+tab_feat_ratio_oj_16S <- merge(tab_feat_ratio_oj_16S, metauni)
+
+## summed up, by mean and sd
+reshape_feat_ratio_oj_16S <- reshape(tab_feat_ratio_oj_16S, 
+                            idvar=c("JuiceID","timepoint") , 
+                            v.names=c("value"), timevar="PC",
+                            direction="wide")
+CC <- grep("value", colnames(reshape_feat_ratio_oj_16S))
+colnames(reshape_feat_ratio_oj_16S)[CC] <- paste("Component", 1:length(CC))
+feature_mat_ratio_oj_16S <- reshape_feat_ratio_oj_16S[,c("Component 1", "Component 2", "Component 3")]
+
+time_vec_ratio <- reshape_feat_ratio_oj_16S$timepoint
+group_vec_ratio <- factor(reshape_feat_ratio_oj_16S$Tech, 
+                        levels=c("Untreated & UV", "Pasteurization", "HPP"))
+## visualize metafeature ratios
+p_feat_ratio_summary_oj_16S <- plot_feature_summary(feature_mat_ratio_oj_16S, 
+                                           time_vec_ratio, 
+                                           group_vec_ratio, bws=30, nrow=1) + 
+  xlab('Day') + theme_pubr() + 
+  theme(legend.position='bottom') +
+  scale_color_manual(values=Tech_color) + scale_fill_manual(values=Tech_color)
+
+## PERMANOVA
+# Can component 2 & 3 discriminate juice processed by different technology?
+permanova_oj_16S <- adonis2(reshape_feat_ratio_oj_16S[,8:10] ~ Tech,
+                            method = "euclidean",
+                            data = reshape_feat_ratio_oj_16S) 
+
+# Can component 1 & 2 discriminate juice from different trial?
+permanova_oj_16S_trial <- adonis2(reshape_feat_ratio_oj_16S[,8:10] ~ Trial,
+                            method = "euclidean",
+                            data = reshape_feat_ratio_oj_16S) 
+
+```
+
+
 #### Temporal loadings
 
 ```{r}
@@ -591,7 +599,7 @@ plot_feature_summary((proportion_table_oj %>% select(ASV_121, ASV_129, ASV_216, 
              labeller = labeller(feature_all = top_abs_PC3_oj_labs))+theme_pubr()
 
 ```
-Plot PPCs relevent to Component 1
+Plot PPCs relevant to Component 1
 ```{r}
 bact_PPCs_OJ <- plot_feature_summary((proportion_table_oj %>% select(ASV_41, ASV_50, ASV_67, ASV_69)), metatable_oj$Day, metatable_oj$Tech, bws = 30, nrow = 5)+labs(x = "Day", y = "Relative Abundance")+
   scale_fill_manual(values = Tech_color, name = "Treatment")+
@@ -721,6 +729,53 @@ p_cd_min3 <- A_data_cd %>%
   scale_color_manual(values = Tech_color)+
   theme_pubr()
 ggarrange(p_cd_min1, p_cd_min3, legend = "bottom")
+
+```
+
+To determine the statistical differences between groups, we can run PERMANOVA on the TEMPTED output.
+```{r}
+datlist_cd_16S <- format_tempted(counttable_cd,
+                                 metatable_cd$Day,
+                                 metatable_cd$JuiceID,
+                                 threshold = 0.95,
+                                 transform = "none")
+ratio_feat_cd_16S <- ratio_feature(res_count_cd, datlist_cd_16S, pct = 0.005, absolute = TRUE)
+
+## summed up, by individual subject
+tab_feat_ratio_cd_16S <- ratio_feat_cd_16S$metafeature_ratio
+colnames(tab_feat_ratio_cd_16S )[2] <- 'JuiceID'
+tab_feat_ratio_cd_16S <- merge(tab_feat_ratio_cd_16S, metauni)
+
+## summed up, by mean and sd
+reshape_feat_ratio_cd_16S <- reshape(tab_feat_ratio_cd_16S, 
+                            idvar=c("JuiceID","timepoint") , 
+                            v.names=c("value"), timevar="PC",
+                            direction="wide")
+CC <- grep("value", colnames(reshape_feat_ratio_cd_16S))
+colnames(reshape_feat_ratio_cd_16S)[CC] <- paste("Component", 1:length(CC))
+feature_mat_ratio_cd_16S <- reshape_feat_ratio_cd_16S[,c("Component 1", "Component 2", "Component 3")]
+
+time_vec_ratio <- reshape_feat_ratio_cd_16S$timepoint
+group_vec_ratio <- factor(reshape_feat_ratio_cd_16S$Tech, 
+                        levels=c("Untreated & UV", "Pasteurization", "HPP"))
+## visualize metafeature ratios
+p_feat_ratio_summary_cd_16S <- plot_feature_summary(feature_mat_ratio_cd_16S, 
+                                           time_vec_ratio, 
+                                           group_vec_ratio, bws=30, nrow=1) + 
+  xlab('Day') + theme_pubr() + 
+  theme(legend.position='bottom') +
+  scale_color_manual(values=Tech_color) + scale_fill_manual(values=Tech_color)
+
+## PERMANOVA
+# Can component 2 & 3 discriminate juice processed by different technology?
+permanova_cd_16S <- adonis2(reshape_feat_ratio_cd_16S[,8:10] ~ Tech,
+                            method = "euclidean",
+                            data = reshape_feat_ratio_cd_16S) 
+
+# Can component 1 - 3 discriminate juice from different trial?
+permanova_cd_16S_trial <- adonis2(reshape_feat_ratio_cd_16S[,8:10] ~ Trial,
+                            method = "euclidean",
+                            data = reshape_feat_ratio_cd_16S) 
 
 ```
 #### Temporal loadings

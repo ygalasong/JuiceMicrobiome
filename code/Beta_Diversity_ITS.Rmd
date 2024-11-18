@@ -290,6 +290,57 @@ p_oj_min3 <- A_data_oj %>%
 
 ggarrange(p_oj_min1, p_oj_min3, legend = "bottom")
 ```
+
+PERMANOVA
+```{r}
+datlist_oj_ITS <- format_tempted(counttable_oj,
+                                 metatable_oj$Day,
+                                 metatable_oj$JuiceID,
+                                 threshold = 0.95,
+                                 transform = "none")
+ratio_feat_oj_ITS <- ratio_feature(res_count_oj, datlist_oj_ITS, pct = 0.005, absolute = TRUE)
+
+## summed up, by individual subject
+tab_feat_ratio_oj_ITS <- ratio_feat_oj_ITS$metafeature_ratio
+colnames(tab_feat_ratio_oj_ITS )[2] <- 'JuiceID'
+tab_feat_ratio_oj_ITS <- merge(tab_feat_ratio_oj_ITS, metauni)
+
+## summed up, by mean and sd
+reshape_feat_ratio_oj_ITS <- reshape(tab_feat_ratio_oj_ITS, 
+                            idvar=c("JuiceID","timepoint") , 
+                            v.names=c("value"), timevar="PC",
+                            direction="wide")
+CC <- grep("value", colnames(reshape_feat_ratio_oj_ITS))
+colnames(reshape_feat_ratio_oj_ITS)[CC] <- paste("Component", 1:length(CC))
+feature_mat_ratio_oj_ITS <- reshape_feat_ratio_oj_ITS[,c("Component 1", "Component 2", "Component 3")]
+
+time_vec_ratio <- reshape_feat_ratio_oj_ITS$timepoint
+group_vec_ratio <- factor(reshape_feat_ratio_oj_ITS$Tech, 
+                        levels=c("Untreated & UV", "Pasteurization", "HPP"))
+## visualize metafeature ratios
+p_feat_ratio_summary_oj_ITS <- plot_feature_summary(feature_mat_ratio_oj_ITS, 
+                                           time_vec_ratio, 
+                                           group_vec_ratio, bws=30, nrow=1) + 
+  xlab('Day') + theme_pubr() + 
+  theme(legend.position='bottom') +
+  scale_color_manual(values=Tech_color) + scale_fill_manual(values=Tech_color)
+
+## PERMANOVA
+# Can component 2 & 3 discriminate juice processed by different technology?
+permanova_oj_ITS <- adonis2(reshape_feat_ratio_oj_ITS[,7:9] ~ Tech,
+                            method = "euclidean", 
+                            strata = reshape_feat_ratio_oj_ITS$Trial,
+                            data = reshape_feat_ratio_oj_ITS) 
+
+# Can component 1 & 2 discriminate juice from different trial?
+permanova_oj_ITS_trial <- adonis2(reshape_feat_ratio_oj_ITS[,7:9] ~ Trial,
+                            method = "euclidean",
+                            data = reshape_feat_ratio_oj_ITS) 
+
+
+```
+
+
 # Plot of subject loading (component 2 & 3)
 ```{r}
 p_oj3 <- A_data_oj %>% 
@@ -693,6 +744,52 @@ p_cd2 + geom_mark_ellipse(aes(fill = Tech), alpha = 0.15,
   scale_x_continuous(limits = c(-0.6,0.6))+
   theme_classic()
   
+```
+PERMANOVA
+```{r}
+datlist_cd_ITS <- format_tempted(counttable_cd,
+                                 metatable_cd$Day,
+                                 metatable_cd$JuiceID,
+                                 threshold = 0.95,
+                                 transform = "none")
+ratio_feat_cd_ITS <- ratio_feature(res_count_cd, datlist_cd_ITS, pct = 0.005, absolute = TRUE)
+
+## summed up, by individual subject
+tab_feat_ratio_cd_ITS <- ratio_feat_cd_ITS$metafeature_ratio
+colnames(tab_feat_ratio_cd_ITS )[2] <- 'JuiceID'
+tab_feat_ratio_cd_ITS <- merge(tab_feat_ratio_cd_ITS, metauni)
+
+## summed up, by mean and sd
+reshape_feat_ratio_cd_ITS <- reshape(tab_feat_ratio_cd_ITS, 
+                            idvar=c("JuiceID","timepoint") , 
+                            v.names=c("value"), timevar="PC",
+                            direction="wide")
+CC <- grep("value", colnames(reshape_feat_ratio_cd_ITS))
+colnames(reshape_feat_ratio_cd_ITS)[CC] <- paste("Component", 1:length(CC))
+feature_mat_ratio_cd_ITS <- reshape_feat_ratio_cd_ITS[,c("Component 1", "Component 2", "Component 3")]
+
+time_vec_ratio <- reshape_feat_ratio_cd_ITS$timepoint
+group_vec_ratio <- factor(reshape_feat_ratio_cd_ITS$Tech, 
+                        levels=c("Untreated & UV", "Pasteurization", "HPP"))
+## visualize metafeature ratios
+p_feat_ratio_summary_cd_ITS <- plot_feature_summary(feature_mat_ratio_cd_ITS, 
+                                           time_vec_ratio, 
+                                           group_vec_ratio, bws=30, nrow=1) + 
+  xlab('Day') + theme_pubr() + 
+  theme(legend.position='bottom') +
+  scale_color_manual(values=Tech_color) + scale_fill_manual(values=Tech_color)
+
+## PERMANOVA
+# Can component 2 & 3 discriminate juice processed by different technology?
+permanova_cd_ITS <- adonis2(reshape_feat_ratio_cd_ITS[,7:9] ~ Tech,
+                            method = "euclidean", 
+                            strata = reshape_feat_ratio_cd_ITS$Trial,
+                            data = reshape_feat_ratio_cd_ITS) 
+
+# Can component 1 & 2 discriminate juice from different trial?
+permanova_cd_ITS_trial <- adonis2(reshape_feat_ratio_cd_ITS[,7:9] ~ Trial,
+                            method = "euclidean",
+                            data = reshape_feat_ratio_cd_ITS) 
 ```
 
 ```{r}
